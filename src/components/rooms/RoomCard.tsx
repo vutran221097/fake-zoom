@@ -5,6 +5,7 @@ import { Card, CardContent, CardFooter } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Users, Video } from "lucide-react";
+import { useRouter } from "next/navigation";
 
 interface RoomCardProps {
   id: string;
@@ -21,6 +22,11 @@ const RoomCard = ({
   participantCount = 0,
   onJoin = () => {},
 }: RoomCardProps) => {
+  const router = useRouter();
+
+  const handleJoin = () => {
+    onJoin(id);
+  };
   return (
     <Card className="w-full max-w-[350px] h-[200px] overflow-hidden transition-all hover:shadow-lg bg-card">
       <CardContent className="p-6 flex flex-col h-full">
@@ -50,9 +56,7 @@ const RoomCard = ({
 
       <CardFooter className="p-6 pt-0">
         <Button
-          onClick={() => {
-            onJoin(id);
-          }}
+          onClick={handleJoin}
           className="w-full"
           variant={isActive ? "outline" : "default"}
         >

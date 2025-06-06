@@ -53,9 +53,47 @@ CREATE POLICY "Anyone can create participants" ON participants FOR INSERT WITH C
 CREATE POLICY "Anyone can update participants" ON participants FOR UPDATE USING (true);
 CREATE POLICY "Anyone can delete participants" ON participants FOR DELETE USING (true);
 
--- Enable realtime for both tables
+-- Create signaling table for WebRTC
+CREATE TABLE signaling (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  room_id UUID REFERENCES rooms(id) ON DELETE CASCADE,
+  from_user UUID NOT NULL,
+  to_user UUID NOT NULL,
+  signal_type TEXT NOT NULL,
+  signal_data JSONB NOT NULL,
+  created_at TIMESTAMP WITH TIME ZONE DEFAULT NOW()
+);
+
+-- Create index for signaling table
+CREATE INDEX idx_signaling_room_id ON signaling(room_id);
+CREATE INDEX idx_signaling_to_user ON signaling(to_user);
+CREATE INDEX idx_signaling_created_at ON signaling(created_at);
+
+-- Enable Row Level Security for signaling
+ALTER TABLE signaling ENABLE ROW LEVEL SECURITY;
+
+-- Create policies for signaling table
+CREATE POLICY "Anyone can view signaling" ON signaling FOR SELECT USING (true);
+CREATE POLICY "Anyone can create signaling" ON signaling FOR INSERT WITH CHECK (true);
+CREATE POLICY "Anyone can update signaling" ON signaling FOR UPDATE USING (true);
+CREATE POLICY "Anyone can delete signaling" ON signaling FOR DELETE USING (true);
+
+-- Enable realtime for all tables
 ALTER PUBLICATION supabase_realtime ADD TABLE rooms;
 ALTER PUBLICATION supabase_realtime ADD TABLE participants;
+ALTER PUBLICATION supabase_realtime ADD TABLE signaling;
+
+-- Auto-delete old signaling messages (older than 1 hour)
+CREATE OR REPLACE FUNCTION cleanup_old_signaling()
+RETURNS void AS $
+BEGIN
+  DELETE FROM signaling WHERE created_at < NOW() - INTERVAL '1 hour';
+END;
+$ LANGUAGE plpgsql;
+
+-- Create a scheduled job to clean up old signaling messages
+-- Note: This requires pg_cron extension to be enabled
+-- SELECT cron.schedule('cleanup-signaling', '0 * * * *', 'SELECT cleanup_old_signaling();');
 
 */
 

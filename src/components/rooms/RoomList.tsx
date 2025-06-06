@@ -1,53 +1,67 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Plus } from "lucide-react";
 import RoomCard from "./RoomCard";
-
-interface Room {
-  id: string;
-  name: string;
-  isActive: boolean;
-  participantCount: number;
-}
+import { roomService, Room } from "@/lib/supabase";
+import { useRouter } from "next/navigation";
 
 interface RoomListProps {
-  rooms?: Room[];
   onCreateRoom?: () => void;
   onJoinRoom?: (roomId: string) => void;
 }
 
-const RoomList = ({
-  rooms = [
-    {
-      id: "1",
-      name: "Marketing Team Weekly",
-      isActive: true,
-      participantCount: 5,
-    },
-    { id: "2", name: "Product Planning", isActive: false, participantCount: 0 },
-    { id: "3", name: "Design Review", isActive: true, participantCount: 3 },
-    {
-      id: "4",
-      name: "Engineering Standup",
-      isActive: false,
-      participantCount: 0,
-    },
-    { id: "5", name: "Customer Feedback", isActive: true, participantCount: 2 },
-    {
-      id: "6",
-      name: "Quarterly Planning",
-      isActive: false,
-      participantCount: 0,
-    },
-  ],
-  onCreateRoom = () => console.log("Create room clicked"),
-  onJoinRoom = (roomId) => console.log(`Join room ${roomId} clicked`),
-}: RoomListProps) => {
+const RoomList = ({ onCreateRoom, onJoinRoom }: RoomListProps) => {
+  const router = useRouter();
+  const [rooms, setRooms] = useState<Room[]>([]);
+  const [loading, setLoading] = useState(true);
   const [searchQuery, setSearchQuery] = useState("");
   const [filter, setFilter] = useState<"all" | "active" | "inactive">("all");
+  const [newRoomName, setNewRoomName] = useState("");
+  const [isCreating, setIsCreating] = useState(false);
+
+  // Load rooms on component mount
+  useEffect(() => {
+    loadRooms();
+  }, []);
+
+  const loadRooms = async () => {
+    setLoading(true);
+    const roomsData = await roomService.getRooms();
+    setRooms(roomsData);
+    setLoading(false);
+  };
+
+  const handleCreateRoom = async () => {
+    if (!newRoomName.trim()) {
+      const roomName = `Meeting Room ${Date.now()}`;
+      setNewRoomName(roomName);
+    }
+
+    setIsCreating(true);
+    const room = await roomService.createRoom(
+      newRoomName.trim() || `Meeting Room ${Date.now()}`,
+    );
+
+    if (room) {
+      setRooms((prev) => [room, ...prev]);
+      setNewRoomName("");
+      if (onCreateRoom) {
+        onCreateRoom();
+      }
+    }
+    setIsCreating(false);
+  };
+
+  const handleJoinRoom = (roomId: string) => {
+    if (onJoinRoom) {
+      onJoinRoom(roomId);
+    } else {
+      router.push(`/room/${roomId}`);
+    }
+  };
 
   const filteredRooms = rooms.filter((room) => {
     const matchesSearch = room.name
@@ -55,8 +69,8 @@ const RoomList = ({
       .includes(searchQuery.toLowerCase());
     const matchesFilter =
       filter === "all" ||
-      (filter === "active" && room.isActive) ||
-      (filter === "inactive" && !room.isActive);
+      (filter === "active" && room.is_active) ||
+      (filter === "inactive" && !room.is_active);
     return matchesSearch && matchesFilter;
   });
 
@@ -64,9 +78,23 @@ const RoomList = ({
     <div className="w-full bg-background p-6 rounded-lg shadow-sm">
       <div className="flex flex-col md:flex-row justify-between items-center mb-6 gap-4">
         <h2 className="text-2xl font-bold">Meeting Rooms</h2>
-        <Button onClick={onCreateRoom} className="w-full md:w-auto">
-          <Plus className="mr-2 h-4 w-4" /> Create New Room
-        </Button>
+        <div className="flex gap-2 w-full md:w-auto">
+          <Input
+            placeholder="Room name (optional)"
+            value={newRoomName}
+            onChange={(e) => setNewRoomName(e.target.value)}
+            className="flex-1 md:w-48"
+            onKeyPress={(e) => e.key === "Enter" && handleCreateRoom()}
+          />
+          <Button
+            onClick={handleCreateRoom}
+            disabled={isCreating}
+            className="whitespace-nowrap"
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            {isCreating ? "Creating..." : "Create Room"}
+          </Button>
+        </div>
       </div>
 
       <div className="flex flex-col md:flex-row gap-4 mb-6">
@@ -104,10 +132,17 @@ const RoomList = ({
         </div>
       </div>
 
-      {filteredRooms.length === 0 ? (
+      {loading ? (
+        <div className="text-center py-12">
+          <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent mx-auto mb-4"></div>
+          <p className="text-muted-foreground">Loading rooms...</p>
+        </div>
+      ) : filteredRooms.length === 0 ? (
         <div className="text-center py-12 border rounded-lg bg-muted/20">
           <p className="text-muted-foreground">
-            No rooms found matching your criteria
+            {rooms.length === 0
+              ? "No rooms available. Create your first room to get started!"
+              : "No rooms found matching your criteria"}
           </p>
         </div>
       ) : (
@@ -117,9 +152,9 @@ const RoomList = ({
               key={room.id}
               id={room.id}
               name={room.name}
-              isActive={room.isActive}
-              participantCount={room.participantCount}
-              onJoin={onJoinRoom}
+              isActive={room.is_active}
+              participantCount={room.participant_count}
+              onJoin={handleJoinRoom}
             />
           ))}
         </div>

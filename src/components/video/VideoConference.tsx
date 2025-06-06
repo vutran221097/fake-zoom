@@ -20,110 +20,89 @@ import {
   VolumeX,
   Camera,
   MonitorSpeaker,
+  Wifi,
+  WifiOff,
 } from "lucide-react";
 import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
-
-interface Participant {
-  id: string;
-  name: string;
-  avatar?: string;
-  isScreenSharing: boolean;
-  isVideoOn: boolean;
-  isAudioOn: boolean;
-}
+import { useWebRTC } from "@/hooks/useWebRTC";
 
 interface VideoConferenceProps {
   roomId?: string;
-  participants?: Participant[];
+  participantCount?: number;
   onExit?: () => void;
 }
 
 export default function VideoConference({
   roomId = "room-123",
-  participants = [
-    {
-      id: "1",
-      name: "You",
-      avatar: "",
-      isScreenSharing: false,
-      isVideoOn: true,
-      isAudioOn: true,
-    },
-    {
-      id: "2",
-      name: "John Doe",
-      avatar: "",
-      isScreenSharing: false,
-      isVideoOn: true,
-      isAudioOn: true,
-    },
-    {
-      id: "3",
-      name: "Jane Smith",
-      avatar: "",
-      isScreenSharing: false,
-      isVideoOn: true,
-      isAudioOn: false,
-    },
-    {
-      id: "4",
-      name: "Alex Johnson",
-      avatar: "",
-      isScreenSharing: false,
-      isVideoOn: false,
-      isAudioOn: true,
-    },
-  ],
+  participantCount = 1,
   onExit = () => {},
 }: VideoConferenceProps) {
   const router = useRouter();
-  const [isAudioOn, setIsAudioOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(true);
-  const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isTalking, setIsTalking] = useState(false);
   const [zoomLevel, setZoomLevel] = useState(1);
   const [activeTab, setActiveTab] = useState("video");
   const [volume, setVolume] = useState(0.8);
-  const videoRef = useRef<HTMLVideoElement>(null);
+  const [userId] = useState(
+    () => `user-${Math.random().toString(36).substr(2, 9)}`,
+  );
+  const [userName] = useState(() => `User ${Math.floor(Math.random() * 1000)}`);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
-  // Initialize camera and microphone
+  // Use WebRTC hook for real-time communication
+  const {
+    participants,
+    localStream,
+    localVideoRef,
+    isAudioOn,
+    isVideoOn,
+    isScreenSharing,
+    isConnected,
+    toggleAudio,
+    toggleVideo,
+    toggleScreenShare,
+    leaveRoom,
+  } = useWebRTC(roomId, userId, userName);
+
+  // Add current user to participants list for display
+  const allParticipants = [
+    {
+      id: userId,
+      name: `${userName} (You)`,
+      avatar: "",
+      isScreenSharing,
+      isVideoOn,
+      isAudioOn,
+      stream: localStream,
+    },
+    ...participants,
+  ];
+
+  // Initialize audio analysis for talking detection
   useEffect(() => {
-    const initializeMedia = async () => {
+    if (localStream) {
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = stream;
-        }
-
-        // Set up audio analysis for talking detection
         audioContextRef.current = new AudioContext();
-        const source = audioContextRef.current.createMediaStreamSource(stream);
+        const source =
+          audioContextRef.current.createMediaStreamSource(localStream);
         analyserRef.current = audioContextRef.current.createAnalyser();
         source.connect(analyserRef.current);
 
         // Start talking detection
         detectTalking();
       } catch (error) {
-        console.error("Error accessing media devices:", error);
+        console.error("Error setting up audio analysis:", error);
       }
-    };
-
-    initializeMedia();
+    }
 
     return () => {
       if (audioContextRef.current) {
         audioContextRef.current.close();
       }
     };
-  }, []);
+  }, [localStream]);
 
   // Talking detection function
   const detectTalking = () => {
@@ -144,60 +123,14 @@ export default function VideoConference({
     checkAudioLevel();
   };
 
-  const toggleAudio = () => {
-    setIsAudioOn(!isAudioOn);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      const audioTracks = stream.getAudioTracks();
-      audioTracks.forEach((track) => {
-        track.enabled = !isAudioOn;
-      });
+  // Handle screen share tab switching
+  useEffect(() => {
+    if (isScreenSharing) {
+      setActiveTab("screen");
+    } else {
+      setActiveTab("video");
     }
-  };
-
-  const toggleVideo = () => {
-    setIsVideoOn(!isVideoOn);
-    if (videoRef.current && videoRef.current.srcObject) {
-      const stream = videoRef.current.srcObject as MediaStream;
-      const videoTracks = stream.getVideoTracks();
-      videoTracks.forEach((track) => {
-        track.enabled = !isVideoOn;
-      });
-    }
-  };
-
-  const toggleScreenShare = async () => {
-    try {
-      if (!isScreenSharing) {
-        const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = screenStream;
-        }
-
-        setIsScreenSharing(true);
-        setActiveTab("screen");
-      } else {
-        // Switch back to camera
-        const cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
-        });
-
-        if (videoRef.current) {
-          videoRef.current.srcObject = cameraStream;
-        }
-
-        setIsScreenSharing(false);
-        setActiveTab("video");
-      }
-    } catch (error) {
-      console.error("Error with screen sharing:", error);
-    }
-  };
+  }, [isScreenSharing]);
 
   const handleZoomIn = () => {
     setZoomLevel((prev) => Math.min(prev + 0.25, 3));
@@ -211,14 +144,9 @@ export default function VideoConference({
     router.push("/");
   };
 
-  const handleExit = () => {
+  const handleExit = async () => {
     if (window.confirm("Are you sure you want to leave this meeting?")) {
-      // Stop all media streams
-      if (videoRef.current && videoRef.current.srcObject) {
-        const stream = videoRef.current.srcObject as MediaStream;
-        stream.getTracks().forEach((track) => track.stop());
-      }
-
+      await leaveRoom();
       onExit();
       router.push("/");
     }
@@ -234,12 +162,25 @@ export default function VideoConference({
           </Button>
           <div className="flex items-center gap-2">
             <h1 className="font-semibold">Room: {roomId}</h1>
-            {isTalking && (
-              <div className="flex items-center gap-1 text-green-500">
-                <Volume2 className="h-4 w-4 animate-pulse" />
-                <span className="text-xs">Speaking</span>
-              </div>
-            )}
+            <div className="flex items-center gap-2">
+              {isConnected ? (
+                <div className="flex items-center gap-1 text-green-500">
+                  <Wifi className="h-4 w-4" />
+                  <span className="text-xs">Connected</span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1 text-red-500">
+                  <WifiOff className="h-4 w-4" />
+                  <span className="text-xs">Connecting...</span>
+                </div>
+              )}
+              {isTalking && (
+                <div className="flex items-center gap-1 text-green-500">
+                  <Volume2 className="h-4 w-4 animate-pulse" />
+                  <span className="text-xs">Speaking</span>
+                </div>
+              )}
+            </div>
           </div>
         </div>
 
@@ -278,7 +219,7 @@ export default function VideoConference({
                   transformOrigin: "top left",
                 }}
               >
-                {participants.map((participant) => (
+                {allParticipants.map((participant) => (
                   <Card
                     key={participant.id}
                     className="overflow-hidden relative"
@@ -286,20 +227,32 @@ export default function VideoConference({
                     <CardContent className="p-0 aspect-video relative bg-muted flex items-center justify-center">
                       {participant.isVideoOn ? (
                         <div className="w-full h-full bg-black relative">
-                          {participant.id === "1" ? (
+                          {participant.id === userId ? (
                             <video
-                              ref={videoRef}
+                              ref={localVideoRef}
                               autoPlay
                               muted
                               playsInline
                               className="w-full h-full object-cover"
                             />
-                          ) : (
-                            <img
-                              src={`https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?w=400&q=80&face=${participant.id}`}
-                              alt={`${participant.name} video`}
+                          ) : participant.stream ? (
+                            <video
+                              autoPlay
+                              playsInline
                               className="w-full h-full object-cover"
+                              ref={(video) => {
+                                if (video && participant.stream) {
+                                  video.srcObject = participant.stream;
+                                }
+                              }}
                             />
+                          ) : (
+                            <div className="w-full h-full bg-gradient-to-br from-blue-800 to-blue-900 flex items-center justify-center">
+                              <div className="text-white text-center">
+                                <Camera className="h-8 w-8 mx-auto mb-2" />
+                                <p className="text-sm">Connecting video...</p>
+                              </div>
+                            </div>
                           )}
 
                           {/* Camera indicator */}
@@ -321,7 +274,7 @@ export default function VideoConference({
                       )}
 
                       {/* Talking indicator */}
-                      {participant.id === "1" && isTalking && (
+                      {participant.id === userId && isTalking && (
                         <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
                           <Volume2 className="h-3 w-3 animate-pulse" />
                           Talking
@@ -334,11 +287,6 @@ export default function VideoConference({
                           <span className="font-medium">
                             {participant.name}
                           </span>
-                          {participant.id === "1" && (
-                            <span className="text-xs bg-blue-500 px-1 rounded">
-                              (You)
-                            </span>
-                          )}
                         </div>
                         <div className="flex gap-1">
                           {!participant.isAudioOn && (
@@ -369,7 +317,7 @@ export default function VideoConference({
                 {isScreenSharing ? (
                   <div className="w-full h-full bg-zinc-800 flex items-center justify-center relative">
                     <video
-                      ref={videoRef}
+                      ref={localVideoRef}
                       autoPlay
                       muted
                       playsInline
@@ -429,7 +377,7 @@ export default function VideoConference({
                 className="flex items-center gap-2"
               >
                 <Users size={16} />
-                <span>Participants ({participants.length})</span>
+                <span>Participants ({allParticipants.length})</span>
               </TabsTrigger>
               <TabsTrigger value="chat" className="flex items-center gap-2">
                 <MessageSquare size={16} />
@@ -443,7 +391,7 @@ export default function VideoConference({
             >
               <ScrollArea className="h-full">
                 <div className="p-4 space-y-2">
-                  {participants.map((participant) => (
+                  {allParticipants.map((participant) => (
                     <div
                       key={participant.id}
                       className="flex items-center justify-between p-2 hover:bg-accent rounded-md"
@@ -457,9 +405,7 @@ export default function VideoConference({
                             {participant.name.charAt(0)}
                           </AvatarFallback>
                         </Avatar>
-                        <span>
-                          {participant.name} {participant.id === "1" && "(You)"}
-                        </span>
+                        <span>{participant.name}</span>
                       </div>
                       <div className="flex gap-1">
                         {!participant.isAudioOn && (
@@ -470,6 +416,9 @@ export default function VideoConference({
                             size={16}
                             className="text-muted-foreground"
                           />
+                        )}
+                        {participant.isScreenSharing && (
+                          <Monitor size={16} className="text-green-500" />
                         )}
                       </div>
                     </div>
@@ -571,8 +520,8 @@ export default function VideoConference({
           <div className="text-right">
             <div className="text-sm font-medium">Room: {roomId}</div>
             <div className="text-xs text-muted-foreground">
-              {participants.length} participant
-              {participants.length !== 1 ? "s" : ""}
+              {allParticipants.length} participant
+              {allParticipants.length !== 1 ? "s" : ""}
             </div>
           </div>
 
