@@ -1,11 +1,11 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-  output: "export", // Change from 'standalone' to 'export'
+  // Removed output: "export" to allow dynamic routes
   distDir: "build",
   trailingSlash: true, // Add this for better routing
   images: {
-    unoptimized: true, // Required for static export
+    unoptimized: true,
   },
 };
 
