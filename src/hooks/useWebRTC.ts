@@ -1,7 +1,7 @@
 "use client";
 
 import { useState, useEffect, useRef, useCallback } from "react";
-import { supabase } from "@/lib/supabase";
+import { supabase, isSupabaseConfigured } from "@/lib/supabase";
 
 interface Participant {
   id: string;
@@ -108,6 +108,11 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   // Send signaling data through Supabase
   const sendSignal = useCallback(async (signal: SignalData) => {
     try {
+      if (!isSupabaseConfigured()) {
+        console.warn("Supabase not configured, skipping signaling");
+        return;
+      }
+
       await supabase.from("signaling").insert({
         room_id: signal.roomId,
         from_user: signal.from,
@@ -167,6 +172,13 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   // Join room and establish connections
   const joinRoom = useCallback(async () => {
     try {
+      // Check if Supabase is configured before making API calls
+      if (!isSupabaseConfigured()) {
+        console.warn("Supabase not configured, skipping database operations");
+        setIsConnected(true);
+        return;
+      }
+
       // Join room in database
       const { error: joinError } = await supabase.from("participants").insert({
         room_id: roomId,
@@ -244,12 +256,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         localStream.getTracks().forEach((track) => track.stop());
       }
 
-      // Remove from database
-      await supabase
-        .from("participants")
-        .delete()
-        .eq("room_id", roomId)
-        .eq("user_id", userId);
+      // Remove from database only if Supabase is configured
+      if (isSupabaseConfigured()) {
+        await supabase
+          .from("participants")
+          .delete()
+          .eq("room_id", roomId)
+          .eq("user_id", userId);
+      }
 
       setIsConnected(false);
       setParticipants([]);
@@ -266,12 +280,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         audioTrack.enabled = !isAudioOn;
         setIsAudioOn(!isAudioOn);
 
-        // Update database
-        supabase
-          .from("participants")
-          .update({ is_audio_on: !isAudioOn })
-          .eq("room_id", roomId)
-          .eq("user_id", userId);
+        // Update database only if Supabase is configured
+        if (isSupabaseConfigured()) {
+          supabase
+            .from("participants")
+            .update({ is_audio_on: !isAudioOn })
+            .eq("room_id", roomId)
+            .eq("user_id", userId);
+        }
       }
     }
   }, [localStream, isAudioOn, roomId, userId]);
@@ -284,12 +300,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         videoTrack.enabled = !isVideoOn;
         setIsVideoOn(!isVideoOn);
 
-        // Update database
-        supabase
-          .from("participants")
-          .update({ is_video_on: !isVideoOn })
-          .eq("room_id", roomId)
-          .eq("user_id", userId);
+        // Update database only if Supabase is configured
+        if (isSupabaseConfigured()) {
+          supabase
+            .from("participants")
+            .update({ is_video_on: !isVideoOn })
+            .eq("room_id", roomId)
+            .eq("user_id", userId);
+        }
       }
     }
   }, [localStream, isVideoOn, roomId, userId]);
@@ -350,12 +368,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         setIsScreenSharing(false);
       }
 
-      // Update database
-      await supabase
-        .from("participants")
-        .update({ is_screen_sharing: !isScreenSharing })
-        .eq("room_id", roomId)
-        .eq("user_id", userId);
+      // Update database only if Supabase is configured
+      if (isSupabaseConfigured()) {
+        await supabase
+          .from("participants")
+          .update({ is_screen_sharing: !isScreenSharing })
+          .eq("room_id", roomId)
+          .eq("user_id", userId);
+      }
     } catch (error) {
       console.error("Error toggling screen share:", error);
     }
@@ -376,6 +396,11 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
   // Listen for signaling messages
   useEffect(() => {
+    if (!isSupabaseConfigured()) {
+      console.warn("Supabase not configured, skipping real-time subscriptions");
+      return;
+    }
+
     const channel = supabase
       .channel(`room-${roomId}`)
       .on(

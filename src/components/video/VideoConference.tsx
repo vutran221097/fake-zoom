@@ -27,6 +27,7 @@ import { Avatar, AvatarFallback, AvatarImage } from "@/components/ui/avatar";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { useRouter } from "next/navigation";
 import { useWebRTC } from "@/hooks/useWebRTC";
+import { isSupabaseConfigured } from "@/lib/supabase";
 
 interface VideoConferenceProps {
   roomId?: string;
@@ -50,6 +51,9 @@ export default function VideoConference({
   const [userName] = useState(() => `User ${Math.floor(Math.random() * 1000)}`);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
+  const [showSupabaseWarning, setShowSupabaseWarning] = useState(
+    !isSupabaseConfigured(),
+  );
 
   // Use WebRTC hook for real-time communication
   const {
@@ -151,6 +155,35 @@ export default function VideoConference({
       router.push("/");
     }
   };
+
+  // Show Supabase configuration warning if not configured
+  if (showSupabaseWarning) {
+    return (
+      <div className="flex flex-col h-full w-full bg-background items-center justify-center p-8">
+        <div className="max-w-md text-center space-y-4">
+          <div className="w-16 h-16 mx-auto bg-yellow-100 rounded-full flex items-center justify-center">
+            <WifiOff className="h-8 w-8 text-yellow-600" />
+          </div>
+          <h2 className="text-xl font-semibold">Database Not Connected</h2>
+          <p className="text-muted-foreground">
+            To enable real-time features like participant synchronization and
+            room management, you need to connect to Supabase.
+          </p>
+          <div className="space-y-2">
+            <Button
+              onClick={() => setShowSupabaseWarning(false)}
+              className="w-full"
+            >
+              Continue Without Database
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              You can still use video calling features locally
+            </p>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex flex-col h-full w-full bg-background">

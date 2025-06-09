@@ -5,7 +5,7 @@ import { Input } from "@/components/ui/input";
 import { Button } from "@/components/ui/button";
 import { Search, Plus } from "lucide-react";
 import RoomCard from "./RoomCard";
-import { roomService, Room } from "@/lib/supabase";
+import { roomService, Room, isSupabaseConfigured } from "@/lib/supabase";
 import { useRouter } from "next/navigation";
 
 interface RoomListProps {
@@ -29,8 +29,28 @@ const RoomList = ({ onCreateRoom, onJoinRoom }: RoomListProps) => {
 
   const loadRooms = async () => {
     setLoading(true);
-    const roomsData = await roomService.getRooms();
-    setRooms(roomsData);
+    if (isSupabaseConfigured()) {
+      const roomsData = await roomService.getRooms();
+      setRooms(roomsData);
+    } else {
+      // Show mock rooms when Supabase is not configured
+      setRooms([
+        {
+          id: "demo-room-1",
+          name: "Demo Meeting Room 1",
+          created_at: new Date().toISOString(),
+          is_active: false,
+          participant_count: 0,
+        },
+        {
+          id: "demo-room-2",
+          name: "Demo Meeting Room 2",
+          created_at: new Date().toISOString(),
+          is_active: true,
+          participant_count: 2,
+        },
+      ]);
+    }
     setLoading(false);
   };
 
@@ -41,17 +61,36 @@ const RoomList = ({ onCreateRoom, onJoinRoom }: RoomListProps) => {
     }
 
     setIsCreating(true);
-    const room = await roomService.createRoom(
-      newRoomName.trim() || `Meeting Room ${Date.now()}`,
-    );
 
-    if (room) {
-      setRooms((prev) => [room, ...prev]);
+    if (isSupabaseConfigured()) {
+      const room = await roomService.createRoom(
+        newRoomName.trim() || `Meeting Room ${Date.now()}`,
+      );
+
+      if (room) {
+        setRooms((prev) => [room, ...prev]);
+        setNewRoomName("");
+        if (onCreateRoom) {
+          onCreateRoom();
+        }
+      }
+    } else {
+      // Create mock room when Supabase is not configured
+      const mockRoom: Room = {
+        id: `demo-room-${Date.now()}`,
+        name: newRoomName.trim() || `Meeting Room ${Date.now()}`,
+        created_at: new Date().toISOString(),
+        is_active: false,
+        participant_count: 0,
+      };
+
+      setRooms((prev) => [mockRoom, ...prev]);
       setNewRoomName("");
       if (onCreateRoom) {
         onCreateRoom();
       }
     }
+
     setIsCreating(false);
   };
 
