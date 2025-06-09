@@ -25,7 +25,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isAudioOn, setIsAudioOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(true);
+  const [isVideoOn, setIsVideoOn] = useState(false);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
@@ -203,7 +203,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         room_id: roomId,
         user_id: userId,
         name: userName,
-        is_video_on: isVideoOn,
+        is_video_on: false,
         is_audio_on: isAudioOn,
         is_screen_sharing: isScreenSharing,
       });

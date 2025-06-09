@@ -45,9 +45,7 @@ export default function VideoConference({
   const [zoomLevel, setZoomLevel] = useState(1);
   const [activeTab, setActiveTab] = useState("video");
   const [volume, setVolume] = useState(0.8);
-  const [userId] = useState(
-    () => `user-${Math.random().toString(36).substr(2, 9)}`,
-  );
+  const [userId] = useState(() => crypto.randomUUID());
   const [userName] = useState(() => `User ${Math.floor(Math.random() * 1000)}`);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
