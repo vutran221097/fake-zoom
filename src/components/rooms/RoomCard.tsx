@@ -47,13 +47,10 @@ const RoomCard = ({
           <Video className="h-4 w-4 mr-2" />
           <span>Ready to join</span>
         </div>
-      </CardContent>
-
-      <CardFooter className="p-6 pt-0">
-        <Button onClick={handleJoin} className="w-full">
+        <Button onClick={handleJoin} className="w-full mt-2">
           Join Meeting
         </Button>
-      </CardFooter>
+      </CardContent>
     </Card>
   );
 };
