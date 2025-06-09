@@ -161,23 +161,23 @@ export default function VideoConference({
     return (
       <div className="flex flex-col h-full w-full bg-background items-center justify-center p-8">
         <div className="max-w-md text-center space-y-4">
-          <div className="w-16 h-16 mx-auto bg-yellow-100 rounded-full flex items-center justify-center">
-            <WifiOff className="h-8 w-8 text-yellow-600" />
+          <div className="w-16 h-16 mx-auto bg-blue-100 rounded-full flex items-center justify-center">
+            <Wifi className="h-8 w-8 text-blue-600" />
           </div>
-          <h2 className="text-xl font-semibold">Database Not Connected</h2>
+          <h2 className="text-xl font-semibold">Demo Mode</h2>
           <p className="text-muted-foreground">
-            To enable real-time features like participant synchronization and
-            room management, you need to connect to Supabase.
+            Running in demo mode with mock participants. Connect to Supabase for
+            full real-time features.
           </p>
           <div className="space-y-2">
             <Button
               onClick={() => setShowSupabaseWarning(false)}
               className="w-full"
             >
-              Continue Without Database
+              Continue with Demo
             </Button>
             <p className="text-xs text-muted-foreground">
-              You can still use video calling features locally
+              Video calling features work locally
             </p>
           </div>
         </div>

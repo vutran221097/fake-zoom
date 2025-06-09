@@ -26,6 +26,7 @@ const RoomCard = ({
 
   const handleJoin = () => {
     onJoin(id);
+    router.push(`/room/${id}`);
   };
   return (
     <Card className="w-full max-w-[350px] h-[200px] overflow-hidden transition-all hover:shadow-lg bg-card">

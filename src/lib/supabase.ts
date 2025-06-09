@@ -1,16 +1,17 @@
 import { createClient } from "@supabase/supabase-js";
 
 const supabaseUrl =
-  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://placeholder.supabase.co";
+  process.env.NEXT_PUBLIC_SUPABASE_URL || "https://demo.supabase.co";
 const supabaseAnonKey =
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY || "placeholder-anon-key";
+  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY ||
+  "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImRlbW8iLCJyb2xlIjoiYW5vbiIsImlhdCI6MTY0NTE5MjgwMCwiZXhwIjoxOTYwNzY4ODAwfQ.demo-key-for-local-development";
 
 // Check if we have valid Supabase credentials
 const hasValidCredentials =
   process.env.NEXT_PUBLIC_SUPABASE_URL &&
   process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY &&
-  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://placeholder.supabase.co" &&
-  process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY !== "placeholder-anon-key";
+  process.env.NEXT_PUBLIC_SUPABASE_URL !== "https://demo.supabase.co" &&
+  !process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY.includes("demo-key");
 
 export const supabase = createClient(supabaseUrl, supabaseAnonKey);
 
@@ -237,7 +238,7 @@ export const participantService = {
   async joinRoom(
     roomId: string,
     userId: string,
-    name: string
+    name: string,
   ): Promise<Participant | null> {
     const { data, error } = await supabase
       .from("participants")
@@ -285,7 +286,7 @@ export const participantService = {
   // Update participant status
   async updateParticipant(
     id: string,
-    updates: Partial<Participant>
+    updates: Partial<Participant>,
   ): Promise<Participant | null> {
     const { data, error } = await supabase
       .from("participants")

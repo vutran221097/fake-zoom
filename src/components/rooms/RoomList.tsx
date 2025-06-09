@@ -37,17 +37,31 @@ const RoomList = ({ onCreateRoom, onJoinRoom }: RoomListProps) => {
       setRooms([
         {
           id: "demo-room-1",
-          name: "Demo Meeting Room 1",
-          created_at: new Date().toISOString(),
+          name: "Team Standup",
+          created_at: new Date(Date.now() - 3600000).toISOString(),
           is_active: false,
           participant_count: 0,
         },
         {
           id: "demo-room-2",
-          name: "Demo Meeting Room 2",
+          name: "Project Review",
+          created_at: new Date(Date.now() - 1800000).toISOString(),
+          is_active: true,
+          participant_count: 3,
+        },
+        {
+          id: "conference-1",
+          name: "Client Presentation",
+          created_at: new Date(Date.now() - 7200000).toISOString(),
+          is_active: false,
+          participant_count: 0,
+        },
+        {
+          id: "workshop",
+          name: "Design Workshop",
           created_at: new Date().toISOString(),
           is_active: true,
-          participant_count: 2,
+          participant_count: 5,
         },
       ]);
     }

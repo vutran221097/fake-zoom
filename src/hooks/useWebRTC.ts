@@ -174,8 +174,27 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
     try {
       // Check if Supabase is configured before making API calls
       if (!isSupabaseConfigured()) {
-        console.warn("Supabase not configured, skipping database operations");
+        console.warn("Supabase not configured, using local mode");
         setIsConnected(true);
+        // Add some mock participants for demo purposes
+        setParticipants([
+          {
+            id: "demo-user-1",
+            name: "Alice Johnson",
+            avatar: "",
+            isScreenSharing: false,
+            isVideoOn: true,
+            isAudioOn: true,
+          },
+          {
+            id: "demo-user-2",
+            name: "Bob Smith",
+            avatar: "",
+            isScreenSharing: false,
+            isVideoOn: false,
+            isAudioOn: true,
+          },
+        ]);
         return;
       }
 
