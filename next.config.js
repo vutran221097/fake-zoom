@@ -1,9 +1,9 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-  // Removed output: "export" to allow dynamic routes
+  output: "export",
   distDir: "build",
-  trailingSlash: true, // Add this for better routing
+  trailingSlash: true,
   images: {
     unoptimized: true,
   },

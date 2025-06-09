@@ -15,7 +15,6 @@ import {
   MessageSquare,
   ZoomIn,
   ZoomOut,
-  ArrowLeft,
   Volume2,
   VolumeX,
   Camera,
@@ -50,7 +49,7 @@ export default function VideoConference({
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
   const [showSupabaseWarning, setShowSupabaseWarning] = useState(
-    !isSupabaseConfigured(),
+    !isSupabaseConfigured()
   );
 
   // Use WebRTC hook for real-time communication
@@ -134,17 +133,11 @@ export default function VideoConference({
     }
   }, [isScreenSharing]);
 
-  const handleZoomIn = () => {
-    setZoomLevel((prev) => Math.min(prev + 0.25, 3));
-  };
-
-  const handleZoomOut = () => {
-    setZoomLevel((prev) => Math.max(prev - 0.25, 0.5));
-  };
-
-  const handleNavigateBack = () => {
-    router.push("/");
-  };
+  useEffect(() => {
+    return () => {
+      leaveRoom();
+    };
+  }, []);
 
   const handleExit = async () => {
     if (window.confirm("Are you sure you want to leave this meeting?")) {
@@ -188,11 +181,7 @@ export default function VideoConference({
       {/* Navigation Header */}
       <div className="h-14 border-b border-border flex items-center justify-between px-4 bg-background/95 backdrop-blur">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" onClick={handleNavigateBack}>
-            <ArrowLeft className="h-4 w-4" />
-          </Button>
           <div className="flex items-center gap-2">
-            <h1 className="font-semibold">Room: {roomId}</h1>
             <div className="flex items-center gap-2">
               {isConnected ? (
                 <div className="flex items-center gap-1 text-green-500">
@@ -213,18 +202,6 @@ export default function VideoConference({
               )}
             </div>
           </div>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button variant="outline" size="icon" onClick={handleZoomOut}>
-            <ZoomOut className="h-4 w-4" />
-          </Button>
-          <span className="text-sm min-w-[60px] text-center">
-            {Math.round(zoomLevel * 100)}%
-          </span>
-          <Button variant="outline" size="icon" onClick={handleZoomIn}>
-            <ZoomIn className="h-4 w-4" />
-          </Button>
         </div>
       </div>
 

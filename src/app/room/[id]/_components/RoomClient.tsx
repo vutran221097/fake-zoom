@@ -2,9 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import VideoConference from "@/components/video/VideoConference";
-import { Button } from "@/components/ui/button";
-import { ArrowLeft, Users } from "lucide-react";
-import Link from "next/link";
+import { Users } from "lucide-react";
 
 interface RoomClientProps {
   roomId: string;
@@ -44,12 +42,6 @@ export default function RoomClient({ roomId }: RoomClientProps) {
       {/* Header */}
       <header className="flex items-center justify-between border-b bg-card px-6 py-4">
         <div className="flex items-center gap-4">
-          <Link href="/">
-            <Button variant="ghost" size="icon">
-              <ArrowLeft className="h-5 w-5" />
-              <span className="sr-only">Back to room list</span>
-            </Button>
-          </Link>
           <h1 className="text-xl font-semibold">{roomName}</h1>
         </div>
         <div className="flex items-center gap-2">
