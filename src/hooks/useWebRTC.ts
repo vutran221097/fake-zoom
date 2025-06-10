@@ -42,7 +42,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteStreamsRef = useRef<{ [key: string]: MediaStream }>({});
   const channelRef = useRef<any>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<any | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
@@ -184,8 +184,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === participantId ? { ...p, stream: remoteStream } : p,
-          ),
+            p.id === participantId ? { ...p, stream: remoteStream } : p
+          )
         );
       };
 
@@ -205,14 +205,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       // Connection state monitoring
       peerConnection.onconnectionstatechange = () => {
         console.log(
-          `Peer connection state with ${participantId}: ${peerConnection.connectionState}`,
+          `Peer connection state with ${participantId}: ${peerConnection.connectionState}`
         );
       };
 
       peersRef.current[participantId] = peerConnection;
       return peerConnection;
     },
-    [localStream, userId, roomId],
+    [localStream, userId, roomId]
   );
 
   // Handle incoming signaling data
@@ -227,7 +227,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         switch (signal.type) {
           case "offer":
             await peerConnection.setRemoteDescription(
-              new RTCSessionDescription(signal.data),
+              new RTCSessionDescription(signal.data)
             );
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
@@ -245,13 +245,13 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
           case "answer":
             await peerConnection.setRemoteDescription(
-              new RTCSessionDescription(signal.data),
+              new RTCSessionDescription(signal.data)
             );
             break;
 
           case "ice-candidate":
             await peerConnection.addIceCandidate(
-              new RTCIceCandidate(signal.data),
+              new RTCIceCandidate(signal.data)
             );
             break;
         }
@@ -259,7 +259,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         console.error("Error handling signal:", error);
       }
     },
-    [createPeerConnection, userId, roomId],
+    [createPeerConnection, userId, roomId]
   );
 
   // Initialize Socket.IO connection
@@ -268,8 +268,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
     // Use a demo socket server or fallback to local
     const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL ||
-      "https://socket-io-demo.herokuapp.com";
+      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000";
     socketRef.current = io(socketUrl, {
       transports: ["websocket", "polling"],
       timeout: 10000,
@@ -285,12 +284,12 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       setIsConnected(true);
     });
 
-    socket.on("disconnect", (reason) => {
+    socket.on("disconnect", (reason: any) => {
       console.log("Disconnected from socket server:", reason);
       setIsConnected(false);
     });
 
-    socket.on("connect_error", (error) => {
+    socket.on("connect_error", (error: any) => {
       console.error("Socket connection error:", error);
       setIsConnected(false);
     });
@@ -321,8 +320,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       if (participant.id !== userId) {
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === participant.id ? { ...p, ...participant } : p,
-          ),
+            p.id === participant.id ? { ...p, ...participant } : p
+          )
         );
       }
     });
@@ -331,8 +330,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       if (data.userId !== userId) {
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === data.userId ? { ...p, isTalking: data.isTalking } : p,
-          ),
+            p.id === data.userId ? { ...p, isTalking: data.isTalking } : p
+          )
         );
       }
     });
@@ -713,7 +712,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         console.log("Starting screen share...");
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: {
-            cursor: "always",
+            // cursor: "always",
             displaySurface: "monitor",
           },
           audio: {
@@ -876,7 +875,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       }
 
       console.log(
-        `Screen sharing toggled to: ${newScreenState ? "ON" : "OFF"}`,
+        `Screen sharing toggled to: ${newScreenState ? "ON" : "OFF"}`
       );
     } catch (error) {
       console.error("Error toggling screen share:", error);
@@ -952,7 +951,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
               roomId: signal.room_id,
             });
           }
-        },
+        }
       )
       .on(
         "postgres_changes",
@@ -981,7 +980,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             ]);
           } else if (payload.eventType === "DELETE") {
             setParticipants((prev) =>
-              prev.filter((p) => p.id !== payload.old.user_id),
+              prev.filter((p) => p.id !== payload.old.user_id)
             );
 
             // Close peer connection
@@ -1002,11 +1001,11 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
                       isAudioOn: payload.new.is_audio_on,
                       isScreenSharing: payload.new.is_screen_sharing,
                     }
-                  : p,
-              ),
+                  : p
+              )
             );
           }
-        },
+        }
       )
       .subscribe();
 
