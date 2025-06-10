@@ -238,7 +238,7 @@ export const participantService = {
   async joinRoom(
     roomId: string,
     userId: string,
-    name: string,
+    name: string
   ): Promise<Participant | null> {
     const { data, error } = await supabase
       .from("participants")
@@ -286,7 +286,7 @@ export const participantService = {
   // Update participant status
   async updateParticipant(
     id: string,
-    updates: Partial<Participant>,
+    updates: Partial<Participant>
   ): Promise<Participant | null> {
     const { data, error } = await supabase
       .from("participants")

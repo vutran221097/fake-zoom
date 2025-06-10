@@ -33,6 +33,12 @@ const RoomCard = ({
       <CardContent className="p-6 flex flex-col h-full">
         <div className="flex justify-between items-start mb-4">
           <h3 className="text-lg font-semibold truncate">{name}</h3>
+          <Badge
+            variant={isActive ? "default" : "outline"}
+            className={`${isActive ? "bg-green-500 hover:bg-green-600" : ""}`}
+          >
+            {isActive ? "Active" : "Inactive"}
+          </Badge>
         </div>
 
         <div className="flex items-center text-muted-foreground mb-auto">

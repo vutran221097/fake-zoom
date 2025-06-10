@@ -25,19 +25,21 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const [participants, setParticipants] = useState<Participant[]>([]);
   const [localStream, setLocalStream] = useState<MediaStream | null>(null);
   const [isAudioOn, setIsAudioOn] = useState(true);
-  const [isVideoOn, setIsVideoOn] = useState(false);
+  const [isVideoOn, setIsVideoOn] = useState(true);
   const [isScreenSharing, setIsScreenSharing] = useState(false);
   const [isConnected, setIsConnected] = useState(false);
 
   const peersRef = useRef<{ [key: string]: RTCPeerConnection }>({});
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteStreamsRef = useRef<{ [key: string]: MediaStream }>({});
+  const channelRef = useRef<any>(null);
 
   // WebRTC configuration
   const rtcConfig = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
+      { urls: "stun:stun2.l.google.com:19302" },
     ],
   };
 
@@ -45,8 +47,16 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const initializeLocalStream = useCallback(async () => {
     try {
       const stream = await navigator.mediaDevices.getUserMedia({
-        video: true,
-        audio: true,
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+        },
       });
 
       setLocalStream(stream);
@@ -77,12 +87,13 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       // Handle remote stream
       peerConnection.ontrack = (event) => {
         const [remoteStream] = event.streams;
+        console.log(`Received remote stream from ${participantId}`);
         remoteStreamsRef.current[participantId] = remoteStream;
 
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === participantId ? { ...p, stream: remoteStream } : p,
-          ),
+            p.id === participantId ? { ...p, stream: remoteStream } : p
+          )
         );
       };
 
@@ -99,10 +110,17 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         }
       };
 
+      // Connection state monitoring
+      peerConnection.onconnectionstatechange = () => {
+        console.log(
+          `Peer connection state with ${participantId}: ${peerConnection.connectionState}`
+        );
+      };
+
       peersRef.current[participantId] = peerConnection;
       return peerConnection;
     },
-    [localStream, userId, roomId],
+    [localStream, userId, roomId]
   );
 
   // Send signaling data through Supabase
@@ -113,7 +131,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         return;
       }
 
-      await supabase.from("signaling").insert({
+      // Insert signal into Supabase
+      const { error } = await supabase.from("signaling").insert({
         room_id: signal.roomId,
         from_user: signal.from,
         to_user: signal.to,
@@ -121,6 +140,10 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         signal_data: signal.data,
         created_at: new Date().toISOString(),
       });
+
+      if (error) {
+        console.error("Error sending signal:", error);
+      }
     } catch (error) {
       console.error("Error sending signal:", error);
     }
@@ -129,6 +152,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   // Handle incoming signaling data
   const handleSignal = useCallback(
     async (signal: SignalData) => {
+      console.log("Received signal:", signal.type, "from:", signal.from);
+
       const peerConnection =
         peersRef.current[signal.from] || createPeerConnection(signal.from);
 
@@ -136,7 +161,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         switch (signal.type) {
           case "offer":
             await peerConnection.setRemoteDescription(
-              new RTCSessionDescription(signal.data),
+              new RTCSessionDescription(signal.data)
             );
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
@@ -152,13 +177,13 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
           case "answer":
             await peerConnection.setRemoteDescription(
-              new RTCSessionDescription(signal.data),
+              new RTCSessionDescription(signal.data)
             );
             break;
 
           case "ice-candidate":
             await peerConnection.addIceCandidate(
-              new RTCIceCandidate(signal.data),
+              new RTCIceCandidate(signal.data)
             );
             break;
         }
@@ -166,36 +191,32 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         console.error("Error handling signal:", error);
       }
     },
-    [createPeerConnection, sendSignal, userId, roomId],
+    [createPeerConnection, sendSignal, userId, roomId]
   );
 
   // Join room and establish connections
   const joinRoom = useCallback(async () => {
     try {
-      // Check if Supabase is configured before making API calls
       if (!isSupabaseConfigured()) {
-        console.warn("Supabase not configured, using local mode");
+        console.warn("Supabase not configured, running in demo mode");
         setIsConnected(true);
-        // Add some mock participants for demo purposes
-        setParticipants([
-          {
-            id: "demo-user-1",
-            name: "Alice Johnson",
-            avatar: "",
-            isScreenSharing: false,
-            isVideoOn: true,
-            isAudioOn: true,
-          },
-          {
-            id: "demo-user-2",
-            name: "Bob Smith",
-            avatar: "",
-            isScreenSharing: false,
-            isVideoOn: false,
-            isAudioOn: true,
-          },
-        ]);
         return;
+      }
+
+      // Create or get room
+      const { data: existingRoom } = await supabase
+        .from("rooms")
+        .select("*")
+        .eq("id", roomId)
+        .single();
+
+      if (!existingRoom) {
+        await supabase.from("rooms").insert({
+          id: roomId,
+          name: `Meeting Room ${roomId}`,
+          is_active: true,
+          participant_count: 0,
+        });
       }
 
       // Join room in database
@@ -203,7 +224,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         room_id: roomId,
         user_id: userId,
         name: userName,
-        is_video_on: false,
+        is_video_on: isVideoOn,
         is_audio_on: isAudioOn,
         is_screen_sharing: isScreenSharing,
       });
@@ -229,7 +250,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             isScreenSharing: p.is_screen_sharing,
             isVideoOn: p.is_video_on,
             isAudioOn: p.is_audio_on,
-          })),
+          }))
         );
 
         // Create offers for existing participants
@@ -275,13 +296,35 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         localStream.getTracks().forEach((track) => track.stop());
       }
 
-      // Remove from database only if Supabase is configured
+      // Remove from database
       if (isSupabaseConfigured()) {
         await supabase
           .from("participants")
           .delete()
           .eq("room_id", roomId)
           .eq("user_id", userId);
+
+        // Update room participant count
+        const { data: remainingParticipants } = await supabase
+          .from("participants")
+          .select("*")
+          .eq("room_id", roomId);
+
+        const participantCount = remainingParticipants?.length || 0;
+
+        await supabase
+          .from("rooms")
+          .update({
+            participant_count: participantCount,
+            is_active: participantCount > 0,
+          })
+          .eq("id", roomId);
+      }
+
+      // Close realtime channel
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
       }
 
       setIsConnected(false);
@@ -292,40 +335,118 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   }, [localStream, roomId, userId]);
 
   // Toggle audio
-  const toggleAudio = useCallback(() => {
-    if (localStream) {
-      const audioTrack = localStream.getAudioTracks()[0];
-      if (audioTrack) {
-        audioTrack.enabled = !isAudioOn;
-        setIsAudioOn(!isAudioOn);
+  const toggleAudio = useCallback(async () => {
+    try {
+      const newAudioState = !isAudioOn;
 
-        // Update database only if Supabase is configured
-        if (isSupabaseConfigured()) {
-          supabase
-            .from("participants")
-            .update({ is_audio_on: !isAudioOn })
-            .eq("room_id", roomId)
-            .eq("user_id", userId);
+      if (localStream) {
+        const audioTrack = localStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = newAudioState;
+          setIsAudioOn(newAudioState);
+
+          // Update database
+          if (isSupabaseConfigured()) {
+            await supabase
+              .from("participants")
+              .update({ is_audio_on: newAudioState })
+              .eq("room_id", roomId)
+              .eq("user_id", userId);
+          }
+
+          console.log(`Audio toggled to: ${newAudioState ? "ON" : "OFF"}`);
         }
       }
+    } catch (error) {
+      console.error("Error toggling audio:", error);
     }
   }, [localStream, isAudioOn, roomId, userId]);
 
-  // Toggle video
-  const toggleVideo = useCallback(() => {
-    if (localStream) {
-      const videoTrack = localStream.getVideoTracks()[0];
-      if (videoTrack) {
-        videoTrack.enabled = !isVideoOn;
-        setIsVideoOn(!isVideoOn);
+  // Toggle video - FIXED VERSION
+  const toggleVideo = useCallback(async () => {
+    try {
+      const newVideoState = !isVideoOn;
 
-        // Update database only if Supabase is configured
-        if (isSupabaseConfigured()) {
-          supabase
-            .from("participants")
-            .update({ is_video_on: !isVideoOn })
-            .eq("room_id", roomId)
-            .eq("user_id", userId);
+      if (newVideoState) {
+        // Turning video ON - recreate the video stream
+        console.log("Turning video ON - recreating stream");
+
+        const newStream = await navigator.mediaDevices.getUserMedia({
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+
+        // Stop old stream tracks
+        if (localStream) {
+          localStream.getTracks().forEach((track) => track.stop());
+        }
+
+        // Update local stream
+        setLocalStream(newStream);
+
+        // Update video element
+        if (localVideoRef.current) {
+          localVideoRef.current.srcObject = newStream;
+          await localVideoRef.current.play();
+        }
+
+        // Replace tracks in all peer connections
+        Object.values(peersRef.current).forEach((pc) => {
+          // Replace video track
+          const videoSender = pc
+            .getSenders()
+            .find((sender) => sender.track && sender.track.kind === "video");
+          if (videoSender && newStream.getVideoTracks()[0]) {
+            videoSender.replaceTrack(newStream.getVideoTracks()[0]);
+          }
+
+          // Replace audio track
+          const audioSender = pc
+            .getSenders()
+            .find((sender) => sender.track && sender.track.kind === "audio");
+          if (audioSender && newStream.getAudioTracks()[0]) {
+            audioSender.replaceTrack(newStream.getAudioTracks()[0]);
+          }
+        });
+      } else {
+        // Turning video OFF - just disable the track
+        console.log("Turning video OFF");
+        if (localStream) {
+          const videoTrack = localStream.getVideoTracks()[0];
+          if (videoTrack) {
+            videoTrack.enabled = false;
+          }
+        }
+      }
+
+      setIsVideoOn(newVideoState);
+
+      // Update database
+      if (isSupabaseConfigured()) {
+        await supabase
+          .from("participants")
+          .update({ is_video_on: newVideoState })
+          .eq("room_id", roomId)
+          .eq("user_id", userId);
+      }
+
+      console.log(`Video toggled to: ${newVideoState ? "ON" : "OFF"}`);
+    } catch (error) {
+      console.error("Error toggling video:", error);
+      // If there's an error getting new stream, just disable the current track
+      if (localStream) {
+        const videoTrack = localStream.getVideoTracks()[0];
+        if (videoTrack) {
+          videoTrack.enabled = false;
+          setIsVideoOn(false);
         }
       }
     }
@@ -334,7 +455,10 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   // Toggle screen sharing
   const toggleScreenShare = useCallback(async () => {
     try {
-      if (!isScreenSharing) {
+      const newScreenState = !isScreenSharing;
+
+      if (newScreenState) {
+        // Start screen sharing
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
           video: true,
           audio: true,
@@ -363,10 +487,18 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           toggleScreenShare();
         };
       } else {
-        // Switch back to camera
+        // Stop screen sharing - switch back to camera
         const cameraStream = await navigator.mediaDevices.getUserMedia({
-          video: true,
-          audio: true,
+          video: {
+            width: { ideal: 1280 },
+            height: { ideal: 720 },
+            frameRate: { ideal: 30 },
+          },
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
         });
 
         const videoTrack = cameraStream.getVideoTracks()[0];
@@ -387,14 +519,18 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         setIsScreenSharing(false);
       }
 
-      // Update database only if Supabase is configured
+      // Update database
       if (isSupabaseConfigured()) {
         await supabase
           .from("participants")
-          .update({ is_screen_sharing: !isScreenSharing })
+          .update({ is_screen_sharing: newScreenState })
           .eq("room_id", roomId)
           .eq("user_id", userId);
       }
+
+      console.log(
+        `Screen sharing toggled to: ${newScreenState ? "ON" : "OFF"}`
+      );
     } catch (error) {
       console.error("Error toggling screen share:", error);
     }
@@ -402,18 +538,34 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
   // Initialize on mount
   useEffect(() => {
-    initializeLocalStream().then((stream) => {
+    const initialize = async () => {
+      const stream = await initializeLocalStream();
       if (stream) {
-        joinRoom();
+        await joinRoom();
       }
-    });
-
-    return () => {
-      leaveRoom();
     };
+
+    initialize();
   }, []);
 
-  // Listen for signaling messages
+  // Sync video element with stream changes
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      localVideoRef.current.srcObject = localStream;
+
+      const playVideo = async () => {
+        try {
+          await localVideoRef.current?.play();
+        } catch (error) {
+          console.error("Error playing video:", error);
+        }
+      };
+
+      playVideo();
+    }
+  }, [localStream]);
+
+  // Listen for Supabase realtime events
   useEffect(() => {
     if (!isSupabaseConfigured()) {
       console.warn("Supabase not configured, skipping real-time subscriptions");
@@ -441,7 +593,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
               roomId: signal.room_id,
             });
           }
-        },
+        }
       )
       .on(
         "postgres_changes",
@@ -458,7 +610,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             payload.new.user_id !== userId
           ) {
             setParticipants((prev) => [
-              ...prev,
+              ...prev.filter((p) => p.id !== payload.new.user_id), // Remove if exists
               {
                 id: payload.new.user_id,
                 name: payload.new.name,
@@ -470,7 +622,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             ]);
           } else if (payload.eventType === "DELETE") {
             setParticipants((prev) =>
-              prev.filter((p) => p.id !== payload.old.user_id),
+              prev.filter((p) => p.id !== payload.old.user_id)
             );
 
             // Close peer connection
@@ -491,16 +643,21 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
                       isAudioOn: payload.new.is_audio_on,
                       isScreenSharing: payload.new.is_screen_sharing,
                     }
-                  : p,
-              ),
+                  : p
+              )
             );
           }
-        },
+        }
       )
       .subscribe();
 
+    channelRef.current = channel;
+
     return () => {
-      supabase.removeChannel(channel);
+      if (channelRef.current) {
+        supabase.removeChannel(channelRef.current);
+        channelRef.current = null;
+      }
     };
   }, [roomId, userId, handleSignal]);
 

@@ -41,10 +41,9 @@ export default function VideoConference({
 }: VideoConferenceProps) {
   const router = useRouter();
   const [isTalking, setIsTalking] = useState(false);
-  const [zoomLevel, setZoomLevel] = useState(1);
   const [activeTab, setActiveTab] = useState("video");
   const [volume, setVolume] = useState(0.8);
-  const [userId] = useState(() => crypto.randomUUID());
+  const userId = localStorage.getItem("userId") || "";
   const [userName] = useState(() => `User ${Math.floor(Math.random() * 1000)}`);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
@@ -68,18 +67,28 @@ export default function VideoConference({
   } = useWebRTC(roomId, userId, userName);
 
   // Add current user to participants list for display
-  const allParticipants = [
-    {
-      id: userId,
-      name: `${userName} (You)`,
-      avatar: "",
-      isScreenSharing,
-      isVideoOn,
-      isAudioOn,
-      stream: localStream,
-    },
-    ...participants,
-  ];
+
+  const [allParticipants, setAllParticipants] = useState<any[]>([]);
+
+  useEffect(() => {
+    const participantsId = participants.map((participant) => participant.id);
+    if (participantsId.includes(userId)) {
+      setAllParticipants(participants);
+    } else {
+      setAllParticipants([
+        ...participants,
+        {
+          id: userId,
+          name: `${userName} (You)`,
+          avatar: "",
+          isScreenSharing,
+          isVideoOn,
+          isAudioOn,
+          stream: localStream,
+        },
+      ]);
+    }
+  }, [participants]);
 
   // Initialize audio analysis for talking detection
   useEffect(() => {
@@ -104,6 +113,40 @@ export default function VideoConference({
       }
     };
   }, [localStream]);
+
+  // Fix: Ensure video element gets the stream properly
+  useEffect(() => {
+    if (localVideoRef.current && localStream) {
+      // Force refresh the video element
+      localVideoRef.current.srcObject = localStream;
+
+      // Handle video load events
+      const video = localVideoRef.current;
+
+      const handleLoadedMetadata = () => {
+        console.log("Video metadata loaded");
+        video.play().catch(console.error);
+      };
+
+      const handleCanPlay = () => {
+        console.log("Video can play");
+      };
+
+      const handleError = (e: Event) => {
+        console.error("Video error:", e);
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("canplay", handleCanPlay);
+      video.addEventListener("error", handleError);
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("canplay", handleCanPlay);
+        video.removeEventListener("error", handleError);
+      };
+    }
+  }, [localStream, localVideoRef]);
 
   // Talking detection function
   const detectTalking = () => {
@@ -220,13 +263,7 @@ export default function VideoConference({
             </TabsList>
 
             <TabsContent value="video" className="w-full">
-              <div
-                className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-transform duration-200"
-                style={{
-                  transform: `scale(${zoomLevel})`,
-                  transformOrigin: "top left",
-                }}
-              >
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-transform duration-200">
                 {allParticipants.map((participant) => (
                   <Card
                     key={participant.id}
@@ -241,17 +278,41 @@ export default function VideoConference({
                               autoPlay
                               muted
                               playsInline
-                              className="w-full h-full object-cover"
+                              className="w-full h-full object-cover transform scale-x-[-1]"
+                              style={{
+                                backgroundColor: "transparent",
+                                minHeight: "100%",
+                                minWidth: "100%",
+                              }}
+                              onLoadedMetadata={(e) => {
+                                console.log("Local video loaded metadata");
+                                const video = e.target as HTMLVideoElement;
+                                video.play().catch(console.error);
+                              }}
+                              onError={(e) => {
+                                console.error("Local video error:", e);
+                              }}
                             />
                           ) : participant.stream ? (
                             <video
                               autoPlay
                               playsInline
                               className="w-full h-full object-cover"
+                              style={{
+                                backgroundColor: "transparent",
+                                minHeight: "100%",
+                                minWidth: "100%",
+                              }}
                               ref={(video) => {
                                 if (video && participant.stream) {
                                   video.srcObject = participant.stream;
+                                  video.onloadedmetadata = () => {
+                                    video.play().catch(console.error);
+                                  };
                                 }
+                              }}
+                              onError={(e) => {
+                                console.error("Participant video error:", e);
                               }}
                             />
                           ) : (
@@ -315,13 +376,7 @@ export default function VideoConference({
             </TabsContent>
 
             <TabsContent value="screen" className="w-full">
-              <div
-                className="aspect-video bg-black rounded-lg flex items-center justify-center relative overflow-hidden"
-                style={{
-                  transform: `scale(${zoomLevel})`,
-                  transformOrigin: "center",
-                }}
-              >
+              <div className="aspect-video bg-black rounded-lg flex items-center justify-center relative overflow-hidden">
                 {isScreenSharing ? (
                   <div className="w-full h-full bg-zinc-800 flex items-center justify-center relative">
                     <video
@@ -330,6 +385,9 @@ export default function VideoConference({
                       muted
                       playsInline
                       className="w-full h-full object-contain"
+                      style={{
+                        backgroundColor: "transparent",
+                      }}
                     />
 
                     {/* Screen share controls */}

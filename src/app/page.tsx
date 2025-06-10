@@ -1,9 +1,17 @@
 "use client";
 
-import React from "react";
+import React, { useEffect } from "react";
 import RoomList from "@/components/rooms/RoomList";
 
 export default function Home() {
+  useEffect(() => {
+    if (localStorage.getItem("userId")) {
+      return;
+    } else {
+      const userId = crypto.randomUUID();
+      localStorage.setItem("userId", userId);
+    }
+  }, []);
   return (
     <div className="bg-background min-h-screen">
       <div className="container mx-auto py-8 px-4">
