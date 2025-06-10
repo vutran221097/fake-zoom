@@ -175,7 +175,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       if (localStream) {
         localStream.getTracks().forEach((track) => {
           console.log(
-            `Adding ${track.kind} track to peer connection for ${participantId}`,
+            `Adding ${track.kind} track to peer connection for ${participantId}`
           );
           peerConnection.addTrack(track, localStream);
         });
@@ -193,8 +193,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         // Update participant with stream
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === participantId ? { ...p, stream: remoteStream } : p,
-          ),
+            p.id === participantId ? { ...p, stream: remoteStream } : p
+          )
         );
       };
 
@@ -215,11 +215,11 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       // Connection state monitoring
       peerConnection.onconnectionstatechange = () => {
         console.log(
-          `Peer connection state with ${participantId}: ${peerConnection.connectionState}`,
+          `Peer connection state with ${participantId}: ${peerConnection.connectionState}`
         );
         if (peerConnection.connectionState === "failed") {
           console.log(
-            `Peer connection failed with ${participantId}, attempting to restart`,
+            `Peer connection failed with ${participantId}, attempting to restart`
           );
           // Attempt to restart ICE
           peerConnection.restartIce();
@@ -229,14 +229,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       // ICE connection state monitoring
       peerConnection.oniceconnectionstatechange = () => {
         console.log(
-          `ICE connection state with ${participantId}: ${peerConnection.iceConnectionState}`,
+          `ICE connection state with ${participantId}: ${peerConnection.iceConnectionState}`
         );
       };
 
       peersRef.current[participantId] = peerConnection;
       return peerConnection;
     },
-    [localStream, userId, roomId],
+    [localStream, userId, roomId]
   );
 
   // Handle incoming signaling data
@@ -251,7 +251,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         switch (signal.type) {
           case "offer":
             await peerConnection.setRemoteDescription(
-              new RTCSessionDescription(signal.data),
+              new RTCSessionDescription(signal.data)
             );
             const answer = await peerConnection.createAnswer();
             await peerConnection.setLocalDescription(answer);
@@ -269,13 +269,13 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
           case "answer":
             await peerConnection.setRemoteDescription(
-              new RTCSessionDescription(signal.data),
+              new RTCSessionDescription(signal.data)
             );
             break;
 
           case "ice-candidate":
             await peerConnection.addIceCandidate(
-              new RTCIceCandidate(signal.data),
+              new RTCIceCandidate(signal.data)
             );
             break;
         }
@@ -283,36 +283,46 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         console.error("Error handling signal:", error);
       }
     },
-    [createPeerConnection, userId, roomId],
+    [createPeerConnection, userId, roomId]
   );
 
   // Initialize Socket.IO connection
   const initializeSocket = useCallback(() => {
     if (socketRef.current) return;
 
+    const socketUrl = "https://zoom-bb7ed.web.app";
+    // const socketUrl = "http://localhost:3000";
+
     // Connect to the local server
-    socketRef.current = io({
+    socketRef.current = io(socketUrl, {
       transports: ["websocket", "polling"],
       timeout: 10000,
       reconnection: true,
       reconnectionAttempts: 5,
       reconnectionDelay: 1000,
+      // Add CORS configuration for production
+      forceNew: true,
+      upgrade: true,
     });
 
     const socket = socketRef.current;
 
     socket.on("connect", () => {
       console.log("Connected to socket server with ID:", socket.id);
+      debugger;
+
       setIsConnected(true);
     });
 
     socket.on("disconnect", (reason: any) => {
       console.log("Disconnected from socket server:", reason);
+      debugger;
       setIsConnected(false);
     });
 
     socket.on("connect_error", (error: any) => {
       console.error("Socket connection error:", error);
+      debugger;
       setIsConnected(false);
     });
 
@@ -334,7 +344,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           });
           return newParticipants;
         });
-      },
+      }
     );
 
     socket.on("participant-joined", (participant: Participant) => {
@@ -388,8 +398,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       if (participant.id !== userId) {
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === participant.id ? { ...p, ...participant } : p,
-          ),
+            p.id === participant.id ? { ...p, ...participant } : p
+          )
         );
       }
     });
@@ -398,8 +408,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       if (data.userId !== userId) {
         setParticipants((prev) =>
           prev.map((p) =>
-            p.id === data.userId ? { ...p, isTalking: data.isTalking } : p,
-          ),
+            p.id === data.userId ? { ...p, isTalking: data.isTalking } : p
+          )
         );
       }
     });
@@ -692,12 +702,12 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           const videoSender = pc
             .getSenders()
             .find(
-              (sender: any) => sender.track && sender.track.kind === "video",
+              (sender: any) => sender.track && sender.track.kind === "video"
             );
           const audioSender = pc
             .getSenders()
             .find(
-              (sender: any) => sender.track && sender.track.kind === "audio",
+              (sender: any) => sender.track && sender.track.kind === "audio"
             );
 
           if (videoSender) {
@@ -739,7 +749,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             const videoSender = pc
               .getSenders()
               .find(
-                (sender: any) => sender.track && sender.track.kind === "video",
+                (sender: any) => sender.track && sender.track.kind === "video"
               );
             if (videoSender) {
               videoSender.replaceTrack(null).catch(console.error);
@@ -802,7 +812,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         socketRef.current.emit("chat-message", chatMessage);
       }
     },
-    [roomId, userId, userName],
+    [roomId, userId, userName]
   );
 
   // Toggle screen sharing
@@ -815,9 +825,9 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         // Start screen sharing
         console.log("Starting screen share...");
         const screenStream = await navigator.mediaDevices.getDisplayMedia({
-          video: {
-            cursor: "always",
-          },
+          // video: {
+          //   cursor: "always",
+          // },
           audio: true,
         });
 
@@ -993,7 +1003,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       }
 
       console.log(
-        `Screen sharing toggled to: ${newScreenState ? "ON" : "OFF"}`,
+        `Screen sharing toggled to: ${newScreenState ? "ON" : "OFF"}`
       );
     } catch (error: any) {
       console.error("Error toggling screen share:", error);
@@ -1024,7 +1034,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         await joinRoom();
       } else {
         console.warn(
-          "Failed to initialize local stream, joining room anyway...",
+          "Failed to initialize local stream, joining room anyway..."
         );
         await joinRoom();
       }
@@ -1078,7 +1088,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
               roomId: signal.room_id,
             });
           }
-        },
+        }
       )
       .on(
         "postgres_changes",
@@ -1107,7 +1117,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             ]);
           } else if (payload.eventType === "DELETE") {
             setParticipants((prev) =>
-              prev.filter((p) => p.id !== payload.old.user_id),
+              prev.filter((p) => p.id !== payload.old.user_id)
             );
 
             // Close peer connection
@@ -1128,11 +1138,11 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
                       isAudioOn: payload.new.is_audio_on,
                       isScreenSharing: payload.new.is_screen_sharing,
                     }
-                  : p,
-              ),
+                  : p
+              )
             );
           }
-        },
+        }
       )
       .subscribe();
 

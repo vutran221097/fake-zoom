@@ -12,7 +12,15 @@ var handler = app.getRequestHandler();
 app.prepare().then(function () {
   var httpServer = http.createServer(handler);
 
-  var io = new Server(httpServer);
+  var io = new Server(httpServer, {
+    cors: {
+      origin: ["http://localhost:3000", "https://zoom-bb7ed.web.app"],
+      //   methods: ["GET", "POST"],
+      //   credentials: true,
+    },
+    transports: ["websocket", "polling"],
+    allowEIO3: true,
+  });
 
   // Store room participants
   const roomParticipants = new Map();
@@ -40,7 +48,7 @@ app.prepare().then(function () {
 
       // Send existing participants to the new user
       const existingParticipants = Array.from(
-        roomParticipants.get(roomId).values(),
+        roomParticipants.get(roomId).values()
       ).filter((p) => p.id !== participant.id);
 
       if (existingParticipants.length > 0) {
@@ -96,7 +104,7 @@ app.prepare().then(function () {
     socket.on("chat-message", function (data) {
       const { roomId, message, userId, userName, timestamp } = data;
       console.log(
-        `Chat message in room ${roomId} from ${userName}: ${message}`,
+        `Chat message in room ${roomId} from ${userName}: ${message}`
       );
 
       // Broadcast message to all participants in the room including sender
