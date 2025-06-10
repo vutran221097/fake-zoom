@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useRef, useEffect } from "react";
+import React, { useState, useEffect } from "react";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
@@ -13,8 +13,6 @@ import {
   PhoneOff,
   Users,
   MessageSquare,
-  ZoomIn,
-  ZoomOut,
   Volume2,
   VolumeX,
   Camera,
@@ -156,12 +154,6 @@ export default function VideoConference({
       setActiveTab("video");
     }
   }, [isScreenSharing]);
-
-  useEffect(() => {
-    return () => {
-      leaveRoom();
-    };
-  }, []);
 
   const handleExit = async () => {
     if (window.confirm("Are you sure you want to leave this meeting?")) {

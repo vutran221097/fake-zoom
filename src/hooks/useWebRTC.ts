@@ -946,12 +946,6 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
     };
 
     initialize();
-
-    // Cleanup on unmount
-    return () => {
-      console.log("Cleaning up WebRTC...");
-      leaveRoom();
-    };
   }, []);
 
   // Sync video element with stream changes
