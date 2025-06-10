@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import io, { Socket } from "socket.io-client";
+import { io, Socket } from "socket.io-client";
 
 interface Participant {
   id: string;
@@ -42,7 +42,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteStreamsRef = useRef<{ [key: string]: MediaStream }>({});
   const channelRef = useRef<any>(null);
-  const socketRef = useRef<any | null>(null);
+  const socketRef = useRef<Socket | null>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
@@ -266,10 +266,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const initializeSocket = useCallback(() => {
     if (socketRef.current) return;
 
-    // Use a demo socket server or fallback to local
-    const socketUrl =
-      process.env.NEXT_PUBLIC_SOCKET_URL || "http://localhost:3000";
-    socketRef.current = io(socketUrl, {
+    // Connect to the local server
+    socketRef.current = io({
       transports: ["websocket", "polling"],
       timeout: 10000,
       reconnection: true,
@@ -280,7 +278,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
     const socket = socketRef.current;
 
     socket.on("connect", () => {
-      console.log("Connected to socket server");
+      console.log("Connected to socket server with ID:", socket.id);
       setIsConnected(true);
     });
 
@@ -297,14 +295,38 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
     socket.on("signal", handleSignal);
 
     socket.on("participant-joined", (participant: Participant) => {
+      console.log("Participant joined:", participant);
       if (participant.id !== userId) {
         setParticipants((prev) => {
           const exists = prev.find((p) => p.id === participant.id);
           if (!exists) {
+            // Create peer connection for new participant
+            createPeerConnection(participant.id);
             return [...prev, participant];
           }
           return prev;
         });
+        
+        // Create offer for new participant
+        setTimeout(async () => {
+          const peerConnection = peersRef.current[participant.id];
+          if (peerConnection) {
+            try {
+              const offer = await peerConnection.createOffer();
+              await peerConnection.setLocalDescription(offer);
+              
+              socket.emit("signal", {
+                type: "offer",
+                data: offer,
+                from: userId,
+                to: participant.id,
+                roomId,
+              });
+            } catch (error) {
+              console.error("Error creating offer:", error);
+            }
+          }
+        }, 1000);
       }
     });
 
@@ -338,17 +360,22 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
     return socket;
   }, [userId, handleSignal]);
+  }, [userId, handleSignal]);
 
   // Join room and establish connections
   const joinRoom = useCallback(async () => {
     if (hasJoined) return; // Prevent duplicate joins
 
     try {
-      const socket = initializeSocket();
-      if (!socket) return;
+      if (!socketRef.current) {
+        console.error("Socket not initialized");
+        return;
+      }
 
+      console.log(`Joining room ${roomId} as ${userName}`);
+      
       // Join room via socket
-      socket.emit("join-room", {
+      socketRef.current.emit("join-room", {
         roomId,
         participant: {
           id: userId,
@@ -363,6 +390,8 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
       setHasJoined(true);
 
+      console.log(`Successfully joined room ${roomId}`);
+      
       // Also handle Supabase if configured
       if (isSupabaseConfigured()) {
         // Create or get room
@@ -888,12 +917,25 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   useEffect(() => {
     const initialize = async () => {
       console.log("Initializing WebRTC...");
+      
+      // Initialize socket first
+      const socket = initializeSocket();
+      if (!socket) {
+        console.error("Failed to initialize socket");
+        return;
+      }
+      
+      // Wait a bit for socket to connect
+      await new Promise(resolve => setTimeout(resolve, 1000));
+      
+      // Then initialize media stream
       const stream = await initializeLocalStream();
       if (stream) {
         console.log("Local stream initialized, joining room...");
         await joinRoom();
       } else {
-        console.error("Failed to initialize local stream");
+        console.warn("Failed to initialize local stream, joining room anyway...");
+        await joinRoom();
       }
     };
 
