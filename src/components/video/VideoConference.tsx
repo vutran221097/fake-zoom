@@ -40,15 +40,22 @@ export default function VideoConference({
   onExit = () => {},
 }: VideoConferenceProps) {
   const router = useRouter();
-  const [isTalking, setIsTalking] = useState(false);
   const [activeTab, setActiveTab] = useState("video");
   const [volume, setVolume] = useState(0.8);
-  const userId = localStorage.getItem("userId") || "";
+  const [userId] = useState(() => {
+    if (typeof window !== "undefined") {
+      let id = localStorage.getItem("userId");
+      if (!id) {
+        id = crypto.randomUUID();
+        localStorage.setItem("userId", id);
+      }
+      return id;
+    }
+    return crypto.randomUUID();
+  });
   const [userName] = useState(() => `User ${Math.floor(Math.random() * 1000)}`);
-  const audioContextRef = useRef<AudioContext | null>(null);
-  const analyserRef = useRef<AnalyserNode | null>(null);
   const [showSupabaseWarning, setShowSupabaseWarning] = useState(
-    !isSupabaseConfigured()
+    !isSupabaseConfigured(),
   );
 
   // Use WebRTC hook for real-time communication
@@ -66,106 +73,80 @@ export default function VideoConference({
     leaveRoom,
   } = useWebRTC(roomId, userId, userName);
 
+  // Get current user's talking state from participants
+  const currentUser = participants.find((p) => p.id === userId);
+  const isTalking = currentUser?.isTalking || false;
+
   // Add current user to participants list for display
-
-  const [allParticipants, setAllParticipants] = useState<any[]>([]);
-
-  useEffect(() => {
-    const participantsId = participants.map((participant) => participant.id);
-    if (participantsId.includes(userId)) {
-      setAllParticipants(participants);
-    } else {
-      setAllParticipants([
-        ...participants,
-        {
-          id: userId,
-          name: `${userName} (You)`,
-          avatar: "",
-          isScreenSharing,
-          isVideoOn,
-          isAudioOn,
-          stream: localStream,
-        },
-      ]);
-    }
-  }, [participants]);
-
-  // Initialize audio analysis for talking detection
-  useEffect(() => {
-    if (localStream) {
-      try {
-        audioContextRef.current = new AudioContext();
-        const source =
-          audioContextRef.current.createMediaStreamSource(localStream);
-        analyserRef.current = audioContextRef.current.createAnalyser();
-        source.connect(analyserRef.current);
-
-        // Start talking detection
-        detectTalking();
-      } catch (error) {
-        console.error("Error setting up audio analysis:", error);
-      }
-    }
-
-    return () => {
-      if (audioContextRef.current) {
-        audioContextRef.current.close();
-      }
+  const allParticipants = React.useMemo(() => {
+    const currentUserParticipant = {
+      id: userId,
+      name: `${userName} (You)`,
+      avatar: `https://api.dicebear.com/7.x/avataaars/svg?seed=${userId}`,
+      isScreenSharing,
+      isVideoOn,
+      isAudioOn,
+      stream: localStream,
+      isTalking,
     };
-  }, [localStream]);
 
-  // Fix: Ensure video element gets the stream properly
+    // Filter out current user from remote participants to avoid duplicates
+    const remoteParticipants = participants.filter((p) => p.id !== userId);
+
+    return [currentUserParticipant, ...remoteParticipants];
+  }, [
+    participants,
+    localStream,
+    isVideoOn,
+    isAudioOn,
+    isScreenSharing,
+    isTalking,
+    userId,
+    userName,
+  ]);
+
+  // Audio analysis is now handled in the useWebRTC hook
+
+  // Ensure video element gets the stream properly
   useEffect(() => {
     if (localVideoRef.current && localStream) {
-      // Force refresh the video element
-      localVideoRef.current.srcObject = localStream;
-
-      // Handle video load events
       const video = localVideoRef.current;
 
-      const handleLoadedMetadata = () => {
-        console.log("Video metadata loaded");
-        video.play().catch(console.error);
-      };
+      // Only update if the stream has changed
+      if (video.srcObject !== localStream) {
+        video.srcObject = localStream;
 
-      const handleCanPlay = () => {
-        console.log("Video can play");
-      };
+        const handleLoadedMetadata = () => {
+          console.log("Video metadata loaded");
+          video.play().catch((error) => {
+            console.warn("Video play failed:", error);
+          });
+        };
 
-      const handleError = (e: Event) => {
-        console.error("Video error:", e);
-      };
+        const handleCanPlay = () => {
+          console.log("Video can play");
+        };
 
-      video.addEventListener("loadedmetadata", handleLoadedMetadata);
-      video.addEventListener("canplay", handleCanPlay);
-      video.addEventListener("error", handleError);
+        const handleError = (e: Event) => {
+          console.error("Video error:", e);
+        };
 
-      return () => {
-        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
-        video.removeEventListener("canplay", handleCanPlay);
-        video.removeEventListener("error", handleError);
-      };
+        video.addEventListener("loadedmetadata", handleLoadedMetadata, {
+          once: true,
+        });
+        video.addEventListener("canplay", handleCanPlay, { once: true });
+        video.addEventListener("error", handleError);
+
+        return () => {
+          video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+          video.removeEventListener("canplay", handleCanPlay);
+          video.removeEventListener("error", handleError);
+        };
+      }
     }
-  }, [localStream, localVideoRef]);
+  }, [localStream]);
 
-  // Talking detection function
-  const detectTalking = () => {
-    if (!analyserRef.current) return;
-
-    const dataArray = new Uint8Array(analyserRef.current.frequencyBinCount);
-
-    const checkAudioLevel = () => {
-      analyserRef.current!.getByteFrequencyData(dataArray);
-      const average = dataArray.reduce((a, b) => a + b) / dataArray.length;
-
-      // Threshold for talking detection
-      setIsTalking(average > 30 && isAudioOn);
-
-      requestAnimationFrame(checkAudioLevel);
-    };
-
-    checkAudioLevel();
-  };
+  // Talking detection is now handled in the useWebRTC hook via Socket.IO
 
   // Handle screen share tab switching
   useEffect(() => {
@@ -343,10 +324,12 @@ export default function VideoConference({
                       )}
 
                       {/* Talking indicator */}
-                      {participant.id === userId && isTalking && (
+                      {participant.isTalking && (
                         <div className="absolute top-2 left-2 bg-green-500 text-white px-2 py-1 rounded-full text-xs flex items-center gap-1">
                           <Volume2 className="h-3 w-3 animate-pulse" />
-                          Talking
+                          {participant.id === userId
+                            ? "You are talking"
+                            : "Talking"}
                         </div>
                       )}
 

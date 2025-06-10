@@ -1,23 +1,33 @@
 /** @type {import('next').NextConfig} */
 
 const nextConfig = {
-  output: "export",
   distDir: "build",
   trailingSlash: true,
   images: {
     unoptimized: true,
   },
+  webpack: (config, { isServer }) => {
+    if (!isServer) {
+      config.resolve.fallback = {
+        ...config.resolve.fallback,
+        fs: false,
+        net: false,
+        tls: false,
+      };
+    }
+    return config;
+  },
 };
 
-if (process.env.NEXT_PUBLIC_TEMPO) {
-  nextConfig["experimental"] = {
-    // NextJS 13.4.8 up to 14.1.3:
-    // swcPlugins: [[require.resolve("tempo-devtools/swc/0.86"), {}]],
-    // NextJS 14.1.3 to 14.2.11:
-    swcPlugins: [[require.resolve("tempo-devtools/swc/0.90"), {}]],
-
-    // NextJS 15+ (Not yet supported, coming soon)
-  };
+// Add tempo-devtools configuration when in development
+if (process.env.NEXT_PUBLIC_TEMPO && process.env.NODE_ENV === "development") {
+  try {
+    nextConfig["experimental"] = {
+      swcPlugins: [[require.resolve("tempo-devtools/swc/0.90"), {}]],
+    };
+  } catch (error) {
+    console.warn("Failed to load tempo-devtools SWC plugin:", error);
+  }
 }
 
 module.exports = nextConfig;
