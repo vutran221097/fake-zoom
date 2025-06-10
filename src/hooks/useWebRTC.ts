@@ -331,28 +331,41 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       // Also handle Supabase if configured
       if (isSupabaseConfigured()) {
         // Create or get room
-        const { data: existingRoom } = await supabase
+        const { data: existingRoom, error: roomError } = await supabase
           .from("rooms")
           .select("*")
           .eq("id", roomId)
-          .single();
+          .maybeSingle(); // Use maybeSingle() to handle 0 rows gracefully
+
+        if (roomError) {
+          console.error("Error checking room:", roomError);
+        }
 
         if (!existingRoom) {
-          await supabase.from("rooms").insert({
+          const { error: createError } = await supabase.from("rooms").insert({
             id: roomId,
             name: `Meeting Room ${roomId}`,
             is_active: true,
             participant_count: 0,
           });
+
+          if (createError) {
+            console.error("Error creating room:", createError);
+          }
         }
 
         // Check if already joined to prevent duplicates
-        const { data: existingParticipant } = await supabase
-          .from("participants")
-          .select("*")
-          .eq("room_id", roomId)
-          .eq("user_id", userId)
-          .single();
+        const { data: existingParticipant, error: participantError } =
+          await supabase
+            .from("participants")
+            .select("*")
+            .eq("room_id", roomId)
+            .eq("user_id", userId)
+            .maybeSingle(); // Use maybeSingle() to handle 0 rows gracefully
+
+        if (participantError) {
+          console.error("Error checking participant:", participantError);
+        }
 
         if (!existingParticipant) {
           const { error: joinError } = await supabase
@@ -412,27 +425,53 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
       // Remove from database
       if (isSupabaseConfigured()) {
-        await supabase
+        // Delete participant record
+        const { error: deleteError } = await supabase
           .from("participants")
           .delete()
           .eq("room_id", roomId)
           .eq("user_id", userId);
 
+        if (deleteError) {
+          console.error("Error deleting participant:", deleteError);
+        }
+
         // Update room participant count
-        const { data: remainingParticipants } = await supabase
-          .from("participants")
-          .select("*")
-          .eq("room_id", roomId);
+        const { data: remainingParticipants, error: countError } =
+          await supabase.from("participants").select("*").eq("room_id", roomId);
+
+        if (countError) {
+          console.error("Error counting participants:", countError);
+          return;
+        }
 
         const participantCount = remainingParticipants?.length || 0;
 
-        await supabase
+        // Check if room exists before updating
+        const { data: existingRoom, error: roomError } = await supabase
           .from("rooms")
-          .update({
-            participant_count: participantCount,
-            is_active: participantCount > 0,
-          })
-          .eq("id", roomId);
+          .select("id")
+          .eq("id", roomId)
+          .single();
+
+        if (roomError) {
+          console.error("Room not found or error checking room:", roomError);
+          return;
+        }
+
+        if (existingRoom) {
+          const { error: updateError } = await supabase
+            .from("rooms")
+            .update({
+              participant_count: participantCount,
+              is_active: participantCount > 0,
+            })
+            .eq("id", roomId);
+
+          if (updateError) {
+            console.error("Error updating room:", updateError);
+          }
+        }
       }
 
       // Close realtime channel
