@@ -2,7 +2,7 @@
 
 import { useState, useEffect, useRef, useCallback } from "react";
 import { supabase, isSupabaseConfigured } from "@/lib/supabase";
-import { io, Socket } from "socket.io-client";
+import io from "socket.io-client";
 
 interface Participant {
   id: string;
@@ -42,7 +42,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const localVideoRef = useRef<HTMLVideoElement>(null);
   const remoteStreamsRef = useRef<{ [key: string]: MediaStream }>({});
   const channelRef = useRef<any>(null);
-  const socketRef = useRef<Socket | null>(null);
+  const socketRef = useRef<any>(null);
   const audioContextRef = useRef<AudioContext | null>(null);
   const analyserRef = useRef<AnalyserNode | null>(null);
 
@@ -59,7 +59,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const initializeLocalStream = useCallback(async () => {
     try {
       // Always request audio, video based on isVideoOn state
-      const constraints = {
+      const constraints: any = {
         video: isVideoOn
           ? {
               width: { ideal: 1280 },
@@ -94,7 +94,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       }
 
       return stream;
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error accessing media devices:", error);
       // Try with audio only if video fails
       if (isVideoOn) {
@@ -110,7 +110,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           setLocalStream(audioOnlyStream);
           setIsVideoOn(false);
           return audioOnlyStream;
-        } catch (audioError) {
+        } catch (audioError: any) {
           console.error("Error accessing audio:", audioError);
         }
       }
@@ -129,7 +129,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
 
       // Start talking detection
       detectTalking();
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error setting up audio analysis:", error);
     }
   }, []);
@@ -177,7 +177,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       }
 
       // Handle remote stream
-      peerConnection.ontrack = (event) => {
+      peerConnection.ontrack = (event: any) => {
         const [remoteStream] = event.streams;
         console.log(`Received remote stream from ${participantId}`);
         remoteStreamsRef.current[participantId] = remoteStream;
@@ -190,7 +190,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       };
 
       // Handle ICE candidates
-      peerConnection.onicecandidate = (event) => {
+      peerConnection.onicecandidate = (event: any) => {
         if (event.candidate && socketRef.current) {
           socketRef.current.emit("signal", {
             type: "ice-candidate",
@@ -255,7 +255,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             );
             break;
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error("Error handling signal:", error);
       }
     },
@@ -306,7 +306,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           }
           return prev;
         });
-        
+
         // Create offer for new participant
         setTimeout(async () => {
           const peerConnection = peersRef.current[participant.id];
@@ -314,7 +314,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
             try {
               const offer = await peerConnection.createOffer();
               await peerConnection.setLocalDescription(offer);
-              
+
               socket.emit("signal", {
                 type: "offer",
                 data: offer,
@@ -322,7 +322,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
                 to: participant.id,
                 roomId,
               });
-            } catch (error) {
+            } catch (error: any) {
               console.error("Error creating offer:", error);
             }
           }
@@ -359,8 +359,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
     });
 
     return socket;
-  }, [userId, handleSignal]);
-  }, [userId, handleSignal]);
+  }, [userId, handleSignal, createPeerConnection]);
 
   // Join room and establish connections
   const joinRoom = useCallback(async () => {
@@ -373,7 +372,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       }
 
       console.log(`Joining room ${roomId} as ${userName}`);
-      
+
       // Join room via socket
       socketRef.current.emit("join-room", {
         roomId,
@@ -391,7 +390,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       setHasJoined(true);
 
       console.log(`Successfully joined room ${roomId}`);
-      
+
       // Also handle Supabase if configured
       if (isSupabaseConfigured()) {
         // Create or get room
@@ -448,7 +447,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           }
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error joining room:", error);
     }
   }, [
@@ -459,7 +458,6 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
     isAudioOn,
     isScreenSharing,
     hasJoined,
-    initializeSocket,
   ]);
 
   // Leave room
@@ -547,7 +545,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       setIsConnected(false);
       setParticipants([]);
       setHasJoined(false);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error leaving room:", error);
     }
   }, [localStream, roomId, userId]);
@@ -588,7 +586,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           console.log(`Audio toggled to: ${newAudioState ? "ON" : "OFF"}`);
         }
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling audio:", error);
     }
   }, [localStream, isAudioOn, roomId, userId, isVideoOn, isScreenSharing]);
@@ -602,7 +600,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         // Turning video ON - get new video stream
         console.log("Turning video ON - getting video stream");
 
-        const constraints = {
+        const constraints: any = {
           video: {
             width: { ideal: 1280 },
             height: { ideal: 720 },
@@ -632,7 +630,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           localVideoRef.current.srcObject = newStream;
           try {
             await localVideoRef.current.play();
-          } catch (playError) {
+          } catch (playError: any) {
             console.warn("Video play failed:", playError);
           }
         }
@@ -641,10 +639,14 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         Object.values(peersRef.current).forEach((pc) => {
           const videoSender = pc
             .getSenders()
-            .find((sender) => sender.track && sender.track.kind === "video");
+            .find(
+              (sender: any) => sender.track && sender.track.kind === "video"
+            );
           const audioSender = pc
             .getSenders()
-            .find((sender) => sender.track && sender.track.kind === "audio");
+            .find(
+              (sender: any) => sender.track && sender.track.kind === "audio"
+            );
 
           if (videoSender) {
             videoSender.replaceTrack(videoTrack).catch(console.error);
@@ -684,7 +686,9 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           Object.values(peersRef.current).forEach((pc) => {
             const videoSender = pc
               .getSenders()
-              .find((sender) => sender.track && sender.track.kind === "video");
+              .find(
+                (sender: any) => sender.track && sender.track.kind === "video"
+              );
             if (videoSender) {
               videoSender.replaceTrack(null).catch(console.error);
             }
@@ -717,7 +721,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       }
 
       console.log(`Video toggled to: ${newVideoState ? "ON" : "OFF"}`);
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling video:", error);
     }
   }, [
@@ -743,7 +747,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           video: {
             // cursor: "always",
             displaySurface: "monitor",
-          },
+          } as any,
           audio: {
             echoCancellation: true,
             noiseSuppression: true,
@@ -773,7 +777,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
         Object.values(peersRef.current).forEach((pc) => {
           const videoSender = pc
             .getSenders()
-            .find((s) => s.track && s.track.kind === "video");
+            .find((s: any) => s.track && s.track.kind === "video");
           if (videoSender && screenVideoTrack) {
             videoSender.replaceTrack(screenVideoTrack).catch(console.error);
           } else if (screenVideoTrack) {
@@ -820,10 +824,10 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           Object.values(peersRef.current).forEach((pc) => {
             const videoSender = pc
               .getSenders()
-              .find((s) => s.track && s.track.kind === "video");
+              .find((s: any) => s.track && s.track.kind === "video");
             const audioSender = pc
               .getSenders()
-              .find((s) => s.track && s.track.kind === "audio");
+              .find((s: any) => s.track && s.track.kind === "audio");
 
             if (videoSender && videoTrack) {
               videoSender.replaceTrack(videoTrack).catch(console.error);
@@ -854,7 +858,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           Object.values(peersRef.current).forEach((pc) => {
             const audioSender = pc
               .getSenders()
-              .find((s) => s.track && s.track.kind === "audio");
+              .find((s: any) => s.track && s.track.kind === "audio");
 
             if (audioSender && audioTrack) {
               audioSender.replaceTrack(audioTrack).catch(console.error);
@@ -865,7 +869,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           Object.values(peersRef.current).forEach((pc) => {
             const videoSender = pc
               .getSenders()
-              .find((s) => s.track && s.track.kind === "video");
+              .find((s: any) => s.track && s.track.kind === "video");
             if (videoSender) {
               videoSender.replaceTrack(null).catch(console.error);
             }
@@ -906,7 +910,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       console.log(
         `Screen sharing toggled to: ${newScreenState ? "ON" : "OFF"}`
       );
-    } catch (error) {
+    } catch (error: any) {
       console.error("Error toggling screen share:", error);
       // Reset state on error
       setIsScreenSharing(false);
@@ -917,24 +921,26 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   useEffect(() => {
     const initialize = async () => {
       console.log("Initializing WebRTC...");
-      
+
       // Initialize socket first
       const socket = initializeSocket();
       if (!socket) {
         console.error("Failed to initialize socket");
         return;
       }
-      
+
       // Wait a bit for socket to connect
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+
       // Then initialize media stream
       const stream = await initializeLocalStream();
       if (stream) {
         console.log("Local stream initialized, joining room...");
         await joinRoom();
       } else {
-        console.warn("Failed to initialize local stream, joining room anyway...");
+        console.warn(
+          "Failed to initialize local stream, joining room anyway..."
+        );
         await joinRoom();
       }
     };
@@ -956,7 +962,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       const playVideo = async () => {
         try {
           await localVideoRef.current?.play();
-        } catch (error) {
+        } catch (error: any) {
           console.error("Error playing video:", error);
         }
       };
@@ -982,7 +988,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           table: "signaling",
           filter: `room_id=eq.${roomId}`,
         },
-        (payload) => {
+        (payload: any) => {
           const signal = payload.new;
           if (signal.to_user === userId) {
             handleSignal({
@@ -1003,7 +1009,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           table: "participants",
           filter: `room_id=eq.${roomId}`,
         },
-        (payload) => {
+        (payload: any) => {
           // Handle participant changes
           if (
             payload.eventType === "INSERT" &&

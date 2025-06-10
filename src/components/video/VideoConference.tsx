@@ -55,7 +55,7 @@ export default function VideoConference({
   });
   const [userName] = useState(() => `User ${Math.floor(Math.random() * 1000)}`);
   const [showSupabaseWarning, setShowSupabaseWarning] = useState(
-    !isSupabaseConfigured(),
+    !isSupabaseConfigured()
   );
 
   // Use WebRTC hook for real-time communication
@@ -74,7 +74,7 @@ export default function VideoConference({
   } = useWebRTC(roomId, userId, userName);
 
   // Get current user's talking state from participants
-  const currentUser = participants.find((p) => p.id === userId);
+  const currentUser = participants.find((p: any) => p.id === userId);
   const isTalking = currentUser?.isTalking || false;
 
   // Add current user to participants list for display
@@ -91,7 +91,7 @@ export default function VideoConference({
     };
 
     // Filter out current user from remote participants to avoid duplicates
-    const remoteParticipants = participants.filter((p) => p.id !== userId);
+    const remoteParticipants = participants.filter((p: any) => p.id !== userId);
 
     return [currentUserParticipant, ...remoteParticipants];
   }, [
@@ -118,7 +118,7 @@ export default function VideoConference({
 
         const handleLoadedMetadata = () => {
           console.log("Video metadata loaded");
-          video.play().catch((error) => {
+          video.play().catch((error: any) => {
             console.warn("Video play failed:", error);
           });
         };
@@ -245,7 +245,7 @@ export default function VideoConference({
 
             <TabsContent value="video" className="w-full">
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 transition-transform duration-200">
-                {allParticipants.map((participant) => (
+                {allParticipants.map((participant: any) => (
                   <Card
                     key={participant.id}
                     className="overflow-hidden relative"
@@ -265,12 +265,12 @@ export default function VideoConference({
                                 minHeight: "100%",
                                 minWidth: "100%",
                               }}
-                              onLoadedMetadata={(e) => {
+                              onLoadedMetadata={(e: any) => {
                                 console.log("Local video loaded metadata");
                                 const video = e.target as HTMLVideoElement;
                                 video.play().catch(console.error);
                               }}
-                              onError={(e) => {
+                              onError={(e: any) => {
                                 console.error("Local video error:", e);
                               }}
                             />
@@ -284,7 +284,7 @@ export default function VideoConference({
                                 minHeight: "100%",
                                 minWidth: "100%",
                               }}
-                              ref={(video) => {
+                              ref={(video: any) => {
                                 if (video && participant.stream) {
                                   video.srcObject = participant.stream;
                                   video.onloadedmetadata = () => {
@@ -292,7 +292,7 @@ export default function VideoConference({
                                   };
                                 }
                               }}
-                              onError={(e) => {
+                              onError={(e: any) => {
                                 console.error("Participant video error:", e);
                               }}
                             />
@@ -440,7 +440,7 @@ export default function VideoConference({
             >
               <ScrollArea className="h-full">
                 <div className="p-4 space-y-2">
-                  {allParticipants.map((participant) => (
+                  {allParticipants.map((participant: any) => (
                     <div
                       key={participant.id}
                       className="flex items-center justify-between p-2 hover:bg-accent rounded-md"
@@ -558,7 +558,7 @@ export default function VideoConference({
               max="1"
               step="0.1"
               value={volume}
-              onChange={(e) => setVolume(parseFloat(e.target.value))}
+              onChange={(e: any) => setVolume(parseFloat(e.target.value))}
               className="w-20 h-2 bg-gray-200 rounded-lg appearance-none cursor-pointer"
             />
           </div>
