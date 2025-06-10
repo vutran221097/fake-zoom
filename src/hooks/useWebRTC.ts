@@ -48,76 +48,26 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const analyserRef = useRef<AnalyserNode | null>(null);
 
   // WebRTC configuration
-  const rtcConfig = {
+  const rtcConfig: RTCConfiguration = {
     iceServers: [
       { urls: "stun:stun.l.google.com:19302" },
       { urls: "stun:stun1.l.google.com:19302" },
       { urls: "stun:stun2.l.google.com:19302" },
+      {
+        urls: "turn:openrelay.metered.ca:80",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
+      {
+        urls: "turn:openrelay.metered.ca:443",
+        username: "openrelayproject",
+        credential: "openrelayproject",
+      },
     ],
+    iceCandidatePoolSize: 10,
+    bundlePolicy: "max-bundle" as RTCBundlePolicy,
+    rtcpMuxPolicy: "require" as RTCRtcpMuxPolicy,
   };
-
-  // Initialize local media stream
-  const initializeLocalStream = useCallback(async () => {
-    try {
-      // Always request audio, video based on isVideoOn state
-      const constraints: any = {
-        video: isVideoOn
-          ? {
-              width: { ideal: 1280 },
-              height: { ideal: 720 },
-              frameRate: { ideal: 30 },
-            }
-          : false,
-        audio: {
-          echoCancellation: true,
-          noiseSuppression: true,
-          autoGainControl: true,
-          sampleRate: 44100,
-        },
-      };
-
-      console.log("Requesting media with constraints:", constraints);
-      const stream = await navigator.mediaDevices.getUserMedia(constraints);
-      console.log("Media stream obtained:", {
-        audioTracks: stream.getAudioTracks().length,
-        videoTracks: stream.getVideoTracks().length,
-      });
-
-      setLocalStream(stream);
-
-      if (localVideoRef.current && isVideoOn) {
-        localVideoRef.current.srcObject = stream;
-      }
-
-      // Initialize audio analysis for talking detection
-      if (stream.getAudioTracks().length > 0) {
-        initializeAudioAnalysis(stream);
-      }
-
-      return stream;
-    } catch (error: any) {
-      console.error("Error accessing media devices:", error);
-      // Try with audio only if video fails
-      if (isVideoOn) {
-        try {
-          console.log("Retrying with audio only...");
-          const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
-            audio: {
-              echoCancellation: true,
-              noiseSuppression: true,
-              autoGainControl: true,
-            },
-          });
-          setLocalStream(audioOnlyStream);
-          setIsVideoOn(false);
-          return audioOnlyStream;
-        } catch (audioError: any) {
-          console.error("Error accessing audio:", audioError);
-        }
-      }
-      return null;
-    }
-  }, [isVideoOn]);
 
   // Initialize audio analysis for talking detection
   const initializeAudioAnalysis = useCallback((stream: MediaStream) => {
@@ -134,6 +84,96 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       console.error("Error setting up audio analysis:", error);
     }
   }, []);
+
+  // Initialize local media stream
+  const initializeLocalStream = useCallback(async () => {
+    try {
+      // First try to get both audio and video
+      const constraints: MediaStreamConstraints = {
+        video: {
+          width: { ideal: 1280 },
+          height: { ideal: 720 },
+          frameRate: { ideal: 30 },
+          facingMode: "user",
+        },
+        audio: {
+          echoCancellation: true,
+          noiseSuppression: true,
+          autoGainControl: true,
+          sampleRate: 44100,
+        },
+      };
+
+      console.log("Requesting media with constraints:", constraints);
+      const stream = await navigator.mediaDevices.getUserMedia(constraints);
+
+      // Verify we got both audio and video tracks
+      const audioTrack = stream.getAudioTracks()[0];
+      const videoTrack = stream.getVideoTracks()[0];
+
+      if (!audioTrack || !videoTrack) {
+        throw new Error("Failed to get both audio and video tracks");
+      }
+
+      console.log("Media stream obtained:", {
+        audioTracks: stream.getAudioTracks().length,
+        videoTracks: stream.getVideoTracks().length,
+        audioEnabled: audioTrack.enabled,
+        videoEnabled: videoTrack.enabled,
+      });
+
+      // Ensure tracks are enabled
+      audioTrack.enabled = true;
+      videoTrack.enabled = true;
+
+      setLocalStream(stream);
+      setIsAudioOn(true);
+      setIsVideoOn(true);
+
+      if (localVideoRef.current) {
+        localVideoRef.current.srcObject = stream;
+        try {
+          await localVideoRef.current.play();
+        } catch (error) {
+          console.error("Error playing local video:", error);
+        }
+      }
+
+      // Initialize audio analysis for talking detection
+      if (audioTrack) {
+        initializeAudioAnalysis(stream);
+      }
+
+      return stream;
+    } catch (error: any) {
+      console.error("Error accessing media devices:", error);
+
+      // If both audio and video fail, try audio only
+      try {
+        console.log("Retrying with audio only...");
+        const audioOnlyStream = await navigator.mediaDevices.getUserMedia({
+          audio: {
+            echoCancellation: true,
+            noiseSuppression: true,
+            autoGainControl: true,
+          },
+        });
+
+        const audioTrack = audioOnlyStream.getAudioTracks()[0];
+        if (audioTrack) {
+          audioTrack.enabled = true;
+          setLocalStream(audioOnlyStream);
+          setIsAudioOn(true);
+          setIsVideoOn(false);
+          return audioOnlyStream;
+        }
+      } catch (audioError: any) {
+        console.error("Error accessing audio:", audioError);
+      }
+
+      return null;
+    }
+  }, [initializeAudioAnalysis]);
 
   // Talking detection function
   const detectTalking = useCallback(() => {
@@ -188,49 +228,80 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
           audioTracks: remoteStream.getAudioTracks().length,
           videoTracks: remoteStream.getVideoTracks().length,
         });
-        remoteStreamsRef.current[participantId] = remoteStream;
 
-        // Update participant with stream
-        setParticipants((prev) =>
-          prev.map((p) =>
-            p.id === participantId ? { ...p, stream: remoteStream } : p
-          )
-        );
-      };
+        // Verify stream has tracks before adding
+        if (
+          remoteStream.getAudioTracks().length > 0 ||
+          remoteStream.getVideoTracks().length > 0
+        ) {
+          // Ensure audio track is enabled
+          const audioTrack = remoteStream.getAudioTracks()[0];
+          if (audioTrack) {
+            audioTrack.enabled = true;
+          }
 
-      // Handle ICE candidates
-      peerConnection.onicecandidate = (event: any) => {
-        if (event.candidate && socketRef.current) {
-          console.log(`Sending ICE candidate to ${participantId}`);
-          socketRef.current.emit("signal", {
-            type: "ice-candidate",
-            data: event.candidate,
-            from: userId,
-            to: participantId,
-            roomId,
+          // Ensure video track is enabled
+          const videoTrack = remoteStream.getVideoTracks()[0];
+          if (videoTrack) {
+            videoTrack.enabled = true;
+          }
+
+          remoteStreamsRef.current[participantId] = remoteStream;
+
+          // Update participant with stream
+          setParticipants((prev) =>
+            prev.map((p) =>
+              p.id === participantId
+                ? {
+                    ...p,
+                    stream: remoteStream,
+                    isAudioOn: audioTrack?.enabled ?? false,
+                    isVideoOn: videoTrack?.enabled ?? false,
+                  }
+                : p
+            )
+          );
+
+          // Log stream details for debugging
+          console.log(`Stream details for ${participantId}:`, {
+            audioEnabled: audioTrack?.enabled,
+            videoEnabled: videoTrack?.enabled,
+            audioMuted: audioTrack?.muted,
+            videoMuted: videoTrack?.muted,
           });
+        } else {
+          console.warn(`Received empty stream from ${participantId}`);
         }
       };
 
-      // Connection state monitoring
+      // Handle connection state changes
       peerConnection.onconnectionstatechange = () => {
         console.log(
           `Peer connection state with ${participantId}: ${peerConnection.connectionState}`
         );
-        if (peerConnection.connectionState === "failed") {
+
+        if (peerConnection.connectionState === "connected") {
+          console.log(`Successfully connected to ${participantId}`);
+        } else if (peerConnection.connectionState === "failed") {
           console.log(
-            `Peer connection failed with ${participantId}, attempting to restart`
+            `Connection failed with ${participantId}, attempting to restart`
           );
-          // Attempt to restart ICE
           peerConnection.restartIce();
         }
       };
 
-      // ICE connection state monitoring
+      // Handle ICE connection state changes
       peerConnection.oniceconnectionstatechange = () => {
         console.log(
           `ICE connection state with ${participantId}: ${peerConnection.iceConnectionState}`
         );
+
+        if (peerConnection.iceConnectionState === "failed") {
+          console.log(
+            `ICE connection failed with ${participantId}, attempting to restart`
+          );
+          peerConnection.restartIce();
+        }
       };
 
       peersRef.current[participantId] = peerConnection;
@@ -290,22 +361,22 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
   const initializeSocket = useCallback(() => {
     if (socketRef.current) return;
 
-    const socketUrl = "https://zoom-bb7ed.web.app";
-    // const socketUrl = "http://localhost:3000";
-
     // Connect to the local server
-    socketRef.current = io(socketUrl, {
+    socketRef.current = io("https://fake-zoom.onrender.com", {
       transports: ["websocket", "polling"],
-      timeout: 10000,
+      timeout: 20000,
       reconnection: true,
-      reconnectionAttempts: 5,
-      reconnectionDelay: 1000,
-      // Add CORS configuration for production
+      reconnectionAttempts: 10,
+      reconnectionDelay: 2000,
+      reconnectionDelayMax: 10000,
       forceNew: true,
+      autoConnect: true,
       upgrade: true,
+      rememberUpgrade: true,
     });
 
     const socket = socketRef.current;
+    debugger;
 
     socket.on("connect", () => {
       console.log("Connected to socket server with ID:", socket.id);
@@ -1018,6 +1089,7 @@ export const useWebRTC = (roomId: string, userId: string, userName: string) => {
       console.log("Initializing WebRTC...");
 
       // Initialize socket first
+      debugger;
       const socket = initializeSocket();
       if (!socket) {
         console.error("Failed to initialize socket");

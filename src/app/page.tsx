@@ -20,7 +20,6 @@ export default function Home() {
     if (socket.connected) {
       onConnect();
     }
-
     function onConnect() {
       setIsConnected(true);
       setTransport(socket.io.engine.transport.name);
